@@ -29,3 +29,6 @@ next-env.d.ts
 
 # cloudflare wrangler local state
 .wrangler/
+/freebuff-sites-build/
+/.open-next/
+/.wrangler/

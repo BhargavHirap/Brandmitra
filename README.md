@@ -9,6 +9,9 @@ restaurants to any retail category.
 This repository is a **working application**, not a mockup. Phases 1–4 are complete and testable;
 Phase 5 is partly built (AI copy, the read-only business agent and the marketing studio).
 
+**Live site:** https://brandmitra-u2gvs6.freebuff.site — Next.js on Cloudflare Workers with a
+D1 database. Sign up, create a business and your storefront opens at `/b/<your-slug>`.
+
 ---
 
 ## Quick start
