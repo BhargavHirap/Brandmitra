@@ -1,4 +1,4 @@
-# Brandmitra — Database Design
+# Vantra — Database Design
 
 One schema, defined once in [`src/db/schema.ts`](../src/db/schema.ts), applied automatically
 on first use. The same SQL runs on **Cloudflare D1** (production) and **local SQLite**

@@ -32,7 +32,7 @@ export default async function SuspendedPage() {
           </p>
         )}
         <div className="mt-7 flex flex-col justify-center gap-2 sm:flex-row">
-          <a href="mailto:support@brandmitra.com" className="btn btn-primary">
+          <a href="mailto:support@vantra.com" className="btn btn-primary">
             Contact support
           </a>
           <Link href="/" className="btn btn-ghost">

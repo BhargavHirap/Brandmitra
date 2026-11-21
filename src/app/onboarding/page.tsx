@@ -67,7 +67,7 @@ export default async function OnboardingPage({
               <div className="sm:col-span-2">
                 <label className="label" htmlFor="slug">Storefront address</label>
                 <div className="flex items-center rounded-[10px] border border-line bg-white px-3 focus-within:border-brand focus-within:ring-[3px] focus-within:ring-brand/10">
-                  <span className="shrink-0 text-[13px] text-muted">brandmitra.com/b/</span>
+                  <span className="shrink-0 text-[13px] text-muted">vantra.com/b/</span>
                   <input
                     id="slug"
                     name="slug"

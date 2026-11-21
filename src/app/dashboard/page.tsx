@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { EmptyState, PageHeader, Panel, Stat } from "@/components/ui";
-import { requireBusiness } from "@/lib/business";
+import { isUnlimitedProducts, requireBusiness } from "@/lib/business";
 import { getDb } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
 
@@ -38,6 +38,12 @@ const AUDIT_LABELS: Record<string, string> = {
   "ai.generated": "AI content generated",
   "ai.refused": "AI refused a request",
   "campaign.approved": "Marketing campaign approved",
+  "business.updated": "Business details updated",
+  "inventory.updated": "Stock updated",
+  "staff.added": "Team member added",
+  "staff.updated": "Team role changed",
+  "staff.removed": "Team member removed",
+  "account.updated": "Account details updated",
 };
 
 export default async function DashboardOverviewPage({
@@ -304,7 +310,15 @@ export default async function DashboardOverviewPage({
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Stat label="Products" value={`${products}`} hint={`Limit ${productLimit} on ${plan?.name ?? "Free"}`} />
+             <Stat
+              label="Products"
+              value={`${products}`}
+              hint={
+                isUnlimitedProducts(productLimit)
+                  ? `Unlimited on ${plan?.name ?? "Free"}`
+                  : `Limit ${productLimit} on ${plan?.name ?? "Free"}`
+              }
+            />
             <Stat label="Customers" value={`${customers}`} hint="Created at first order" />
             <Stat
               label="AI credits"

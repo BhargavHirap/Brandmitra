@@ -1,4 +1,4 @@
-# Brandmitra — Architecture, Stack and Folder Structure
+# Vantra — Architecture, Stack and Folder Structure
 
 ---
 

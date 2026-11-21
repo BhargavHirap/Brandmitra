@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { toggleProductAction } from "@/app/actions/products";
 import { EmptyState, PageHeader, Panel } from "@/components/ui";
-import { requireBusiness } from "@/lib/business";
+import { productLimitLabel, requireBusiness } from "@/lib/business";
 import { getDb } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 
@@ -35,6 +35,8 @@ export default async function ProductsPage({
     category?: string;
     saved?: string;
     deleted?: string;
+    imported?: string;
+    skipped?: string;
     error?: string;
   }>;
 }) {
@@ -102,6 +104,9 @@ export default async function ProductsPage({
         description="Everything you sell, with prices and customisation options. Changes appear on your storefront immediately."
         actions={
           <>
+            <Link href="/dashboard/products/import" className="btn btn-ghost text-[12.5px]">
+              Import menu photo
+            </Link>
             <Link href="/dashboard/categories" className="btn btn-ghost text-[12.5px]">
               Categories
             </Link>
@@ -122,6 +127,16 @@ export default async function ProductsPage({
           Product deleted. Your other items are untouched.
         </div>
       )}
+      {params.imported && (
+        <div className="rounded-[10px] border border-success/20 bg-success/5 px-3.5 py-2.5 text-[12.5px] text-success">
+          Imported {params.imported} product{params.imported === "1" ? "" : "s"} from your menu
+          photo. Open any item to add a description or a picture.
+          {params.skipped && Number(params.skipped) > 0
+            ? ` ${params.skipped} row${params.skipped === "1" ? " was" : "s were"} skipped — your plan's product limit is reached.`
+            : ""}
+        </div>
+      )}
+
       {params.error && ERROR_TEXT[params.error] && (
         <div className="rounded-[10px] border border-danger/20 bg-danger/5 px-3.5 py-2.5 text-[12.5px] text-danger">
           {ERROR_TEXT[params.error]}
@@ -131,7 +146,7 @@ export default async function ProductsPage({
       <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-[12.5px] font-semibold">
-            {total} of {limit} products used
+            {total} of {productLimitLabel(limit)} products used
           </p>
           <p className="mt-0.5 text-[11.5px] text-muted">
             {active} visible on the storefront · {total - active} hidden · {plan?.name ?? "Free"} plan

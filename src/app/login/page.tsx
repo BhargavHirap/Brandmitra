@@ -28,7 +28,7 @@ export default async function LoginPage({
       subtitle="Sign in to your business workspace."
       footer={
         <>
-          New to Brandmitra? <AuthFooterLink href="/signup">Create an account</AuthFooterLink>
+          New to Vantra? <AuthFooterLink href="/signup">Create an account</AuthFooterLink>
         </>
       }
     >

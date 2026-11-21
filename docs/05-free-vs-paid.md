@@ -1,4 +1,4 @@
-# Brandmitra — What Is Free, What Costs Money, and What to Avoid
+# Vantra — What Is Free, What Costs Money, and What to Avoid
 
 Prices and quotas change. Treat every number here as "check the provider's pricing page
 before you commit" — the *structure* of this document will still be right.
@@ -38,7 +38,7 @@ before you commit" — the *structure* of this document will still be right.
 
 | Item | Approx. cost | When it becomes necessary |
 | --- | --- | --- |
-| **Domain name** (`brandmitra.com`) | ₹800–1,500 / year | Before you talk to real customers — trust matters |
+| **Domain name** (`vantra.com`) | ₹800–1,500 / year | Before you talk to real customers — trust matters |
 | **Razorpay** | ~2% per successful transaction (+ GST); no monthly fee | Phase 3, once orders are real. Test mode is free |
 | **Meta WhatsApp Cloud API** | Per-conversation / per-template pricing; some service conversations are free, marketing templates are charged | Phase 6. You also need a verified Meta Business account (free but takes review time) |
 | **SMS / OTP** | ₹0.15–0.30 per SMS | Only if you add phone login; email/password is free |

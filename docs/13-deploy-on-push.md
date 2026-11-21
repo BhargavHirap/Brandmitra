@@ -1,6 +1,6 @@
 # Deploy on every push
 
-Every push to `main` builds Brandmitra and deploys it to **your own free Cloudflare account**.
+Every push to `main` builds Vantra and deploys it to **your own free Cloudflare account**.
 No local terminal, no manual deploy step: GitHub Actions does the build and the upload.
 
 This is separate from the Freebuff Sites deployment at

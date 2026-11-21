@@ -4,7 +4,7 @@ import queue from "@opennextjs/cloudflare/overrides/queue/do-queue";
 import tags from "@opennextjs/cloudflare/overrides/tag-cache/do-sharded-tag-cache";
 
 /**
- * Configuration for deploying Brandmitra to your own Cloudflare account.
+ * Configuration for deploying Vantra to your own Cloudflare account.
  *
  * The cache uses Workers KV instead of R2, so a free Cloudflare account is
  * enough: no card, no paid storage. Freebuff Sites keeps using its own

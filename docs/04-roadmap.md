@@ -1,4 +1,4 @@
-# Brandmitra — Development Roadmap
+# Vantra — Development Roadmap
 
 Eight phases. Each one ends with something a real business can use, and each one can be
 demoed without the next. **Do not start a phase before the previous one passes its
@@ -62,7 +62,9 @@ Everyone learns all three areas; these are owners, not walls.
 - Storefront: category tabs, per-category sections, “from” price, option lists per product.
 
 **Rules kept**
-- `plans.product_limit` enforced on create (free = 10) — tested at exactly 10.
+- `plans.product_limit` enforced on create. Products are now uncapped: every plan stores a
+  ceiling far above real use (1,000,000) and the screens say "Unlimited". The check itself was
+  tested earlier with a seeded limit of 10.
 - Slugs generated server-side, unique per business, never asked from the user.
 - Prices parsed, rounded and range-checked server-side; the form value is never trusted.
 

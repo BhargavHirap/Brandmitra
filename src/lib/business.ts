@@ -42,6 +42,21 @@ export const INDUSTRIES = [
   { value: "other", label: "Other business" },
 ] as const;
 
+/**
+ * Products are not capped by any plan. The `plans.product_limit` column still
+ * exists (the actions keep their "at most" check), but every plan stores this
+ * ceiling, and the screens say "Unlimited" instead of printing the number.
+ */
+export const UNLIMITED_PRODUCTS = 1_000_000;
+
+export function isUnlimitedProducts(limit: number): boolean {
+  return Number(limit) >= UNLIMITED_PRODUCTS;
+}
+
+export function productLimitLabel(limit: number): string {
+  return isUnlimitedProducts(limit) ? "Unlimited" : String(limit);
+}
+
 export const TEMPLATES = [
   { value: "aurora", label: "Aurora", note: "Editorial, image-first" },
   { value: "grid", label: "Grid", note: "Dense catalogue" },

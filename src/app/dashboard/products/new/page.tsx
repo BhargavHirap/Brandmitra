@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createProductAction } from "@/app/actions/products";
 import { ProductForm } from "@/components/product-form";
 import { PageHeader } from "@/components/ui";
-import { requireBusiness } from "@/lib/business";
+import { productLimitLabel, requireBusiness } from "@/lib/business";
 import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -69,7 +69,7 @@ export default async function NewProductPage({
       <PageHeader
         eyebrow="Catalogue"
         title="New product"
-        description={`${total} of ${limit} products used on the ${plan?.name ?? "Free"} plan. Everything except the name is optional.`}
+        description={`${total} of ${productLimitLabel(limit)} products used on the ${plan?.name ?? "Free"} plan. Everything except the name is optional.`}
       />
 
       {error && ERROR_TEXT[error] && (

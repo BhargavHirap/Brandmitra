@@ -1,4 +1,4 @@
-# Brandmitra — Product Analysis, Limitations and the MVP We Should Build First
+# Vantra — Product Analysis, Limitations and the MVP We Should Build First
 
 Written for a three-person team of first-year B.Sc. IT students with Android phones,
 occasional college computers and close to zero funding.
@@ -56,7 +56,7 @@ block a working shop with a working checkout.**
 
 ## 2. The recommended MVP
 
-> **A cafe can sign up, get `brandmitra.com/b/its-name`, list 10 items with sizes and
+> **A cafe can sign up, get `vantra.com/b/its-name`, list 10 items with sizes and
 > add-ons, take an order, and see it in a dashboard and a kitchen screen — all on a phone.**
 
 That is the smallest thing a real business would pay for. It is also testable end to end
@@ -106,7 +106,7 @@ Adding grocery later means new categories and a weight-based price option — no
 
 | Milestone | Measure |
 | --- | --- |
-| Product works | One real cafe takes 20 orders through Brandmitra in a week |
+| Product works | One real cafe takes 20 orders through Vantra in a week |
 | Reliability | Zero reported wrong-price or wrong-total incidents |
 | Security | A second test account cannot see the first business's data (tested, documented) |
 | Money | First ₹499 subscription collected, even manually via UPI |

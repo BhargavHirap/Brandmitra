@@ -18,7 +18,7 @@ const PILLARS = [
   {
     number: "01",
     title: "A storefront, generated",
-    body: "Answer five questions at signup and Brandmitra builds a responsive business website with your brand colours, catalogue and contact details.",
+    body: "Answer five questions at signup and Vantra builds a responsive business website with your brand colours, catalogue and contact details.",
   },
   {
     number: "02",
@@ -89,7 +89,7 @@ export default async function LandingPage() {
                 <br className="hidden sm:block" /> for modern businesses
               </h1>
               <p className="mx-auto mt-6 max-w-xl text-[15px] leading-relaxed text-muted sm:text-base">
-                Register your business and Brandmitra generates a branded storefront,
+                Register your business and Vantra generates a branded storefront,
                 an order desk, a customer book and an AI assistant that works from your
                 real data. One platform, every channel.
               </p>
@@ -114,7 +114,7 @@ export default async function LandingPage() {
                   <span className="h-2.5 w-2.5 rounded-full bg-[#e5e7eb]" />
                   <span className="h-2.5 w-2.5 rounded-full bg-[#e5e7eb]" />
                   <span className="ml-3 truncate rounded-md border border-line bg-white px-2 py-0.5 text-[11px] text-muted">
-                    brandmitra.com/dashboard
+                    vantra.com/dashboard
                   </span>
                 </div>
                 <div className="grid gap-0 sm:grid-cols-[190px_1fr]">
@@ -298,7 +298,7 @@ export default async function LandingPage() {
           <div className="flex items-center gap-2">
             <BrandLink />
           </div>
-          <p>© {new Date().getFullYear()} Brandmitra. Built in India, for the world.</p>
+          <p>© {new Date().getFullYear()} Vantra. Built for the world.</p>
         </div>
       </footer>
     </div>

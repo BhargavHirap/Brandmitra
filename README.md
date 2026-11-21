@@ -1,8 +1,8 @@
-# Brandmitra
+# Vantra
 
 **The AI operating system for modern businesses.**
 
-Brandmitra gives a small business its own storefront, order desk, customer tools and AI
+Vantra gives a small business its own storefront, order desk, customer tools and AI
 assistant from a single signup — multi-tenant, mobile-first, built to expand from
 restaurants to any retail category.
 
@@ -116,6 +116,7 @@ WhatsApp and Razorpay, business verification.
 | [Phase 5 agent guide](docs/11-phase-5-agent-guide.md) | Read-only business agent: the eight reports, the SQL guard, price-change refusals |
 | [Phase 5 marketing guide](docs/12-phase-5-marketing-guide.md) | Marketing studio: draft → preview → approve, the double price filter, campaign storage |
 | [Deploy on every push](docs/13-deploy-on-push.md) | Cloudflare account setup, GitHub secrets/variables, what runs on a push, failure messages |
+| [Secrets and environment variables](docs/14-secrets-and-env.md) | Every value the app needs, whether it is a secret, and exactly where each one is typed |
 
 ---
 

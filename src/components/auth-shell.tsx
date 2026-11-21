@@ -44,7 +44,7 @@ export function AuthShell({
             ))}
           </div>
         </div>
-        <p className="text-[11px] text-white/35">© {new Date().getFullYear()} Brandmitra</p>
+        <p className="text-[11px] text-white/35">© {new Date().getFullYear()} Vantra</p>
       </div>
 
       <div className="flex flex-col justify-center bg-white px-5 py-12 sm:px-12">
@@ -62,7 +62,7 @@ export function AuthShell({
           <div className="mt-7">{children}</div>
           <div className="mt-6 text-[13px] text-muted">{footer}</div>
           <p className="mt-10 text-[11px] leading-relaxed text-muted/80">
-            By continuing you agree to Brandmitra&apos;s terms of service and privacy policy.
+            By continuing you agree to Vantra&apos;s terms of service and privacy policy.
           </p>
         </div>
       </div>

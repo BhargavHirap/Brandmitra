@@ -221,7 +221,7 @@ export default async function StorefrontPage({
               </h1>
               <p className="mt-4 max-w-xl text-[14.5px] leading-relaxed text-muted">
                 {store.description ||
-                  `${store.name} is now on Brandmitra. Browse the catalogue and order directly.`}
+                  `${store.name} is now on Vantra. Browse the catalogue and order directly.`}
               </p>
               <div className="mt-7 flex flex-wrap items-center gap-2.5">
                 <a
@@ -334,7 +334,7 @@ export default async function StorefrontPage({
           <p className="flex items-center gap-1.5">
             Powered by
             <Link href="/" className="font-semibold text-ink hover:underline">
-              Brandmitra
+              Vantra
             </Link>
           </p>
         </div>

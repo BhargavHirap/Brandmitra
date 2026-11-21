@@ -87,7 +87,8 @@ button actually deletes.
 
 ## Plan limits
 
-The Free plan allows 10 products. The limit is checked twice:
+Products are not capped on any plan: every plan stores a ceiling far above real use, so
+a business can list its whole catalogue. The same "at most" check still runs:
 
 1. `/dashboard/products/new` shows a “limit reached” card instead of the form.
 2. `createProductAction` re-counts before inserting and refuses with `?error=limit`.
@@ -140,7 +141,7 @@ teammate.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | Redirect to `?error=missing` | The id does not belong to your business | Reload the list; the item was deleted or belongs to someone else |
-| “You have reached your plan limit” | 10 products on the Free plan | Delete an item, or raise `plans.product_limit` |
+| “You have reached your plan limit” | A lower product limit was set in the `plans` table | Delete an item, or raise `plans.product_limit` |
 | Product not on the storefront | Hidden, sold out, or its group has no options | Check both checkboxes and add at least one option |
 | Price shows as ₹0 | The price field was empty or text | Enter whole rupees, e.g. `180` |
 | Image does not appear | The URL is not a public https link | Upload the photo somewhere public first, or leave it blank |

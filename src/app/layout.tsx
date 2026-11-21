@@ -3,12 +3,12 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Brandmitra — The AI operating system for modern businesses",
-    template: "%s · Brandmitra",
+    default: "Vantra — The AI operating system for modern businesses",
+    template: "%s · Vantra",
   },
   description:
-    "Brandmitra gives every business an AI-generated storefront, an order desk, customer tools and an AI business agent — in one platform.",
-  applicationName: "Brandmitra",
+    "Vantra gives every business an AI-generated storefront, an order desk, customer tools and an AI business agent — in one platform.",
+  applicationName: "Vantra",
   manifest: "/manifest.webmanifest",
 };
 

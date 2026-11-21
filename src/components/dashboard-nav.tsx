@@ -20,14 +20,14 @@ const SECTIONS: { group: string; items: Item[] }[] = [
       { label: "Categories", href: "/dashboard/categories", phase: 2, ready: true },
       { label: "Orders", href: "/dashboard/orders", phase: 3, ready: true },
       { label: "Kitchen display", href: "/dashboard/kitchen", phase: 4, ready: true },
-      { label: "Customers", href: "/dashboard/customers", phase: 3 },
-      { label: "Inventory", href: "/dashboard/inventory", phase: 8 },
+      { label: "Customers", href: "/dashboard/customers", phase: 3, ready: true },
+      { label: "Inventory", href: "/dashboard/inventory", phase: 8, ready: true },
     ],
   },
   {
     group: "Grow with AI",
     items: [
-      { label: "WhatsApp assistant", href: "/dashboard/whatsapp", phase: 6 },
+      { label: "WhatsApp assistant", href: "/dashboard/whatsapp", phase: 6, ready: true },
       { label: "AI marketing studio", href: "/dashboard/marketing", phase: 5, ready: true },
       { label: "AI business agent", href: "/dashboard/agent", phase: 5, ready: true },
     ],
@@ -35,10 +35,10 @@ const SECTIONS: { group: string; items: Item[] }[] = [
   {
     group: "Business",
     items: [
-      { label: "Analytics", href: "/dashboard/analytics", phase: 3 },
-      { label: "Staff", href: "/dashboard/staff", phase: 8 },
-      { label: "Settings", href: "/dashboard/settings", phase: 7 },
-      { label: "Subscription", href: "/dashboard/subscription", phase: 7 },
+      { label: "Analytics", href: "/dashboard/analytics", phase: 3, ready: true },
+      { label: "Staff", href: "/dashboard/staff", phase: 8, ready: true },
+      { label: "Settings", href: "/dashboard/settings", phase: 7, ready: true },
+      { label: "Subscription", href: "/dashboard/subscription", phase: 7, ready: true },
     ],
   },
 ];
