@@ -39,13 +39,10 @@ jobs:
       - name: TypeScript check
         run: npm run typecheck
 
-      - name: Write the deploy config
+      - name: Build the Cloudflare Worker bundle
         env:
           D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
           KV_NAMESPACE_ID: ${{ vars.KV_NAMESPACE_ID }}
-        run: node scripts/deploy-config.mjs
-
-      - name: Build the Cloudflare Worker bundle
         run: npm run build:worker
 
       - name: Deploy

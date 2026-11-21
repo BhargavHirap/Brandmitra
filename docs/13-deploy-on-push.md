@@ -34,7 +34,7 @@ In the Cloudflare dashboard: **Compute (Workers) → Create → Connect to Git**
 | Worker name | `brandmitra-deploy` |
 | Production branch | `main` |
 | Root directory | `/` |
-| Build command | `node scripts/deploy-config.mjs && npm run build:worker` |
+| Build command | `npm ci && npm run build:worker` |
 | Deploy command | `npx wrangler deploy --config wrangler.deploy.json` |
 
 Then open **Settings → Build → Environment variables** (the build environment, not the
@@ -50,9 +50,10 @@ The Worker name must stay `brandmitra-deploy`: it is written in
 build that deploys to a different name.
 
 Why those commands: `npm run build` alone produces a Next.js folder that Cloudflare cannot run.
-`npm run build:worker` runs the OpenNext adapter and produces `.open-next/worker.js` plus
-`.open-next/assets`, which is what `wrangler deploy` uploads. The config script has to run first
-because it writes the D1 and KV ids into the Wrangler config.
+`npm run build:worker` writes the Wrangler config from your two ids, then runs the OpenNext
+adapter and produces `.open-next/worker.js` plus `.open-next/assets`, which is what
+`wrangler deploy` uploads. `npm ci` is included so the build never depends on Cloudflare
+detecting the lockfile for you.
 
 Runtime secrets (for example `GEMINI_API_KEY`) still go in **Settings → Variables and Secrets**
 of the Worker, never in the repository.
@@ -65,9 +66,8 @@ of the Worker, never in the repository.
 
 1. installs from `package-lock.json` (`npm ci`)
 2. runs the TypeScript check
-3. writes `wrangler.deploy.json` from [`deploy/wrangler.template.json`](../deploy/wrangler.template.json)
-   using your database ids
-4. builds the Worker bundle with OpenNext (`npm run build:worker`)
+3. builds the Worker bundle with OpenNext, writing `wrangler.deploy.json` from
+   [`deploy/wrangler.template.json`](../deploy/wrangler.template.json) using your ids
 5. deploys with `wrangler deploy`
 
 Until the repository has the `CLOUDFLARE_ACCOUNT_ID` variable, the deploy job is **skipped**,
