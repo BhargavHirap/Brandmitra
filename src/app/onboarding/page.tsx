@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { createBusinessAction } from "@/app/actions/business";
 import { BrandLink } from "@/components/brand";
 import { requireUser } from "@/lib/auth";
-import { INDUSTRIES, getMembership } from "@/lib/business";
+import { getMembership } from "@/lib/business";
+import { INDUSTRY_GROUPS } from "@/lib/industries";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,7 @@ export default async function OnboardingPage({
                   id="name"
                   name="name"
                   required
-                  placeholder="Cafe Alpha"
+                  placeholder="Your business name"
                   className="field"
                   autoFocus
                 />
@@ -83,14 +84,23 @@ export default async function OnboardingPage({
               </div>
 
               <div>
-                <label className="label" htmlFor="industry">Industry</label>
+                <label className="label" htmlFor="industry">
+                  Business type
+                </label>
                 <select id="industry" name="industry" className="field" defaultValue="restaurant">
-                  {INDUSTRIES.map((industry) => (
-                    <option key={industry.value} value={industry.value}>
-                      {industry.label}
-                    </option>
+                  {INDUSTRY_GROUPS.map((group) => (
+                    <optgroup key={group.value} label={group.label}>
+                      {group.industries.map((industry) => (
+                        <option key={industry.value} value={industry.value}>
+                          {industry.label}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
+                <p className="mt-1.5 text-[11.5px] text-muted">
+                  Your catalogue starts with categories for this type. You can rename them.
+                </p>
               </div>
 
               <div>
@@ -103,7 +113,7 @@ export default async function OnboardingPage({
                 <input
                   id="tagline"
                   name="tagline"
-                  placeholder="Slow-roasted coffee and fresh bakes, every morning."
+                  placeholder="What you sell, in one line."
                   className="field"
                 />
               </div>

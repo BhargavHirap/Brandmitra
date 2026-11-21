@@ -28,19 +28,7 @@ export type MembershipContext = {
   planId: string;
 };
 
-export const INDUSTRIES = [
-  { value: "restaurant", label: "Restaurant" },
-  { value: "cafe", label: "Cafe" },
-  { value: "bakery", label: "Bakery" },
-  { value: "grocery", label: "Grocery store" },
-  { value: "clothing", label: "Clothing brand" },
-  { value: "salon", label: "Salon" },
-  { value: "gym", label: "Gym" },
-  { value: "coaching", label: "Coaching institute" },
-  { value: "electronics", label: "Electronics store" },
-  { value: "gifts", label: "Gift shop" },
-  { value: "other", label: "Other business" },
-] as const;
+/* The list of business types lives in src/lib/industries.ts (INDUSTRY_GROUPS). */
 
 /**
  * Products are not capped by any plan. The `plans.product_limit` column still

@@ -43,7 +43,7 @@ export default async function CategoriesPage({
       <PageHeader
         eyebrow="Catalogue"
         title="Categories"
-        description="Categories become the tabs on your storefront. Order them the way a customer reads a menu."
+        description="Categories become the tabs on your storefront. Order them the way a customer browses your catalogue."
         actions={
           <>
             <Link href="/dashboard/products" className="btn btn-ghost text-[12.5px]">
@@ -83,7 +83,7 @@ export default async function CategoriesPage({
               <div className="p-4">
                 <p className="text-[13px] font-medium">No categories yet</p>
                 <p className="mt-1 text-[12px] leading-relaxed text-muted">
-                  Add one on the right, for example “Coffee”, “Bakery” or “Combos”. Products without
+                  Add one on the right, for example “Haircuts”, “Bulk cases” or “Combos”. Products without
                   a category still appear on the storefront, just after the grouped ones.
                 </p>
               </div>

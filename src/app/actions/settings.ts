@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { hashPassword, requireUser, verifyPassword } from "@/lib/auth";
-import { INDUSTRIES, logAudit, requireBusiness } from "@/lib/business";
+import { logAudit, requireBusiness } from "@/lib/business";
+import { isIndustry } from "@/lib/industries";
 import { getDb } from "@/lib/db";
 
 /**
@@ -29,9 +30,7 @@ export async function updateBusinessDetailsAction(formData: FormData): Promise<v
   const industryInput = text(formData, "industry", 40);
   if (name.length < 2) redirect("/dashboard/settings?error=name");
 
-  const industry = INDUSTRIES.some((item) => item.value === industryInput)
-    ? industryInput
-    : business.industry;
+  const industry = isIndustry(industryInput) ? industryInput : business.industry;
 
   const db = await getDb();
   await db.run("UPDATE businesses SET name = ?, industry = ? WHERE id = ?", [

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandLink } from "@/components/brand";
 import { getDb } from "@/lib/db";
+import { INDUSTRY_GROUPS } from "@/lib/industries";
 import { formatMoney } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -32,8 +33,8 @@ const PILLARS = [
   },
   {
     number: "04",
-    title: "Built for many industries",
-    body: "Restaurants today, retail and services next. Categories, customisation and workflows are data, not hardcoded screens.",
+    title: "Built for every local business",
+    body: "Restaurants, sweet shops, salons, boutiques, repair services, coaching classes and wholesalers run on the same modules. Categories, customisation and workflows are data, not hardcoded screens.",
   },
   {
     number: "05",
@@ -60,8 +61,8 @@ export default async function LandingPage() {
           <BrandLink />
           <nav className="hidden items-center gap-7 text-sm text-muted md:flex">
             <a className="transition-colors hover:text-ink" href="#product">Product</a>
+            <a className="transition-colors hover:text-ink" href="#industries">Who it&apos;s for</a>
             <a className="transition-colors hover:text-ink" href="#pricing">Pricing</a>
-            <Link className="transition-colors hover:text-ink" href="/b/demo-cafe">Live example</Link>
           </nav>
           <div className="flex items-center gap-2">
             <Link href="/login" className="hidden rounded-[10px] px-3 py-2 text-sm font-medium text-ink hover:bg-canvas sm:block">
@@ -97,9 +98,9 @@ export default async function LandingPage() {
                 <Link href="/signup" className="btn btn-brand w-full sm:w-auto">
                   Create your business
                 </Link>
-                <Link href="/b/demo-cafe" className="btn btn-ghost w-full sm:w-auto">
-                  See a generated storefront
-                </Link>
+                <a href="#industries" className="btn btn-ghost w-full sm:w-auto">
+                  See who it&apos;s for
+                </a>
               </div>
               <p className="mt-4 text-xs text-muted">
                 No card required · Free plan forever · Setup takes about two minutes
@@ -173,13 +174,53 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        {/* Industries */}
-        <section className="border-y border-line bg-canvas/60">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-7 gap-y-3 px-5 py-6 text-[13px] text-muted">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink/60">Built for</span>
-            {["Restaurants", "Cafes", "Bakeries", "Grocery", "Clothing", "Salons", "Gyms", "Coaching"].map((item) => (
-              <span key={item}>{item}</span>
-            ))}
+        {/* Who it is for */}
+        <section id="industries" className="border-y border-line bg-canvas/60">
+          <div className="mx-auto max-w-6xl px-5 py-16 sm:py-20">
+            <div className="max-w-2xl">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
+                Who it&apos;s for
+              </p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.02em] sm:text-4xl">
+                Not just restaurants. Every kind of local business.
+              </h2>
+              <p className="mt-4 text-[15px] leading-relaxed text-muted">
+                Pick your business type at signup and your catalogue starts with the categories you
+                actually sell — services, packages, bulk cartons or sweets. Same dashboard, different
+                vocabulary.
+              </p>
+            </div>
+
+            <div className="mt-9 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {INDUSTRY_GROUPS.map((group) => (
+                <div key={group.value} className="rounded-2xl border border-line bg-white p-5">
+                  <p className="text-[14px] font-semibold leading-snug">{group.label}</p>
+                  <p className="mt-1.5 text-[11.5px] text-muted">{group.examples.join(" · ")}</p>
+                  <p className="mt-3 text-[12.5px] leading-relaxed text-muted">{group.summary}</p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {group.industries.slice(0, 4).map((industry) => (
+                      <span
+                        key={industry.value}
+                        className="rounded-full border border-line px-2 py-0.5 text-[10.5px] text-muted"
+                      >
+                        {industry.label}
+                      </span>
+                    ))}
+                    {group.industries.length > 4 && (
+                      <span className="rounded-full border border-line px-2 py-0.5 text-[10.5px] text-muted">
+                        +{group.industries.length - 4} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-6 text-[12px] text-muted">
+              There are {INDUSTRY_GROUPS.reduce((total, group) => total + group.industries.length, 0)}{" "}
+              types to choose from at signup. Your type only sets the starting categories — every
+              module works the same way, and you can change it later in Settings.
+            </p>
           </div>
         </section>
 

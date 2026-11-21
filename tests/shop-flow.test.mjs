@@ -255,6 +255,18 @@ test("a new shop signs up and uses the stock, staff and settings actions", { tim
       "owner",
     );
 
+    // The catalogue starts with categories for the type they picked, not a
+    // restaurant menu. A cafe gets the cafe list from src/lib/industries.ts.
+    const seededCategories = database()
+      .prepare("SELECT name FROM product_categories WHERE business_id = ? ORDER BY sort_order")
+      .all(business.id)
+      .map((entry) => entry.name);
+    assert.deepEqual(
+      seededCategories,
+      ["Coffee", "Tea", "Cold drinks", "Snacks", "Bakes"],
+      "onboarding should seed categories for the chosen business type",
+    );
+
     // Products are not capped on the Free plan, and the screen says so.
     const catalogue = await owner.get("/dashboard/products");
     assert.equal(catalogue.res.status, 200, "the products page should open");

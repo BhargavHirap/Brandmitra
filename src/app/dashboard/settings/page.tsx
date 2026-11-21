@@ -5,7 +5,8 @@ import {
   updateBusinessDetailsAction,
 } from "@/app/actions/settings";
 import { PageHeader, Panel } from "@/components/ui";
-import { INDUSTRIES, requireBusiness } from "@/lib/business";
+import { requireBusiness } from "@/lib/business";
+import { INDUSTRY_GROUPS } from "@/lib/industries";
 import { getDb } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
 
@@ -108,10 +109,14 @@ export default async function SettingsPage({
                     className="field"
                     disabled={!isOwner}
                   >
-                    {INDUSTRIES.map((industry) => (
-                      <option key={industry.value} value={industry.value}>
-                        {industry.label}
-                      </option>
+                    {INDUSTRY_GROUPS.map((group) => (
+                      <optgroup key={group.value} label={group.label}>
+                        {group.industries.map((industry) => (
+                          <option key={industry.value} value={industry.value}>
+                            {industry.label}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </div>

@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import {
-  INDUSTRIES,
   TEMPLATES,
   getMembership,
   logAudit,
@@ -13,6 +12,7 @@ import {
   uniqueSlug,
 } from "@/lib/business";
 import { getDb } from "@/lib/db";
+import { isIndustry, starterCategories } from "@/lib/industries";
 
 function text(formData: FormData, key: string, max = 200): string {
   return String(formData.get(key) ?? "").trim().slice(0, max);
@@ -35,9 +35,7 @@ export async function createBusinessAction(formData: FormData): Promise<void> {
 
   if (name.length < 2) redirect("/onboarding?error=name");
 
-  const industry = INDUSTRIES.some((item) => item.value === industryInput)
-    ? industryInput
-    : "other";
+  const industry = isIndustry(industryInput) ? industryInput : "other";
 
   const slug = await uniqueSlug(requestedSlug || slugify(name) || name);
   const businessId = crypto.randomUUID();
@@ -75,6 +73,18 @@ export async function createBusinessAction(formData: FormData): Promise<void> {
      VALUES (?, ?, 'free', 'active', NULL, ?)`,
     [crypto.randomUUID(), businessId, now],
   );
+
+  // Start the catalogue with the categories this kind of business actually
+  // sells, so a salon does not open a restaurant menu. All of them are normal
+  // rows the owner can rename, reorder or delete.
+  for (const [index, categoryName] of starterCategories(industry).entries()) {
+    await db.run(
+      `INSERT OR IGNORE INTO product_categories
+         (id, business_id, name, slug, sort_order, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [crypto.randomUUID(), businessId, categoryName, slugify(categoryName), index + 1, now],
+    );
+  }
 
   await logAudit({
     businessId,
