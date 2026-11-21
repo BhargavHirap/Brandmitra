@@ -31,7 +31,7 @@ In the Cloudflare dashboard: **Compute (Workers) → Create → Connect to Git**
 
 | Field | Value |
 | --- | --- |
-| Worker name | `brandmitra-deploy` |
+| Worker name | `brandmitra` |
 | Production branch | `main` |
 | Root directory | `/` |
 | Build command | `npm ci && npm run build:worker` |
@@ -45,9 +45,10 @@ runtime one) and add both, as plain text:
 | `D1_DATABASE_ID` | the id from your D1 database page |
 | `KV_NAMESPACE_ID` | the id from your KV namespace page |
 
-The Worker name must stay `brandmitra-deploy`: it is written in
-[`deploy/wrangler.template.json`](../deploy/wrangler.template.json), and Cloudflare rejects a
-build that deploys to a different name.
+The Worker name must be `brandmitra` **in both places**: the name you type in the Cloudflare
+form and the `name` field in [`deploy/wrangler.template.json`](../deploy/wrangler.template.json).
+Cloudflare checks that they match before it runs the build and fails the build if they do not,
+which is the most common way this route breaks.
 
 Why those commands: `npm run build` alone produces a Next.js folder that Cloudflare cannot run.
 `npm run build:worker` writes the Wrangler config from your two ids, then runs the OpenNext
@@ -179,6 +180,8 @@ The same three commands the workflow runs. It needs `CLOUDFLARE_API_TOKEN` and
 | `D1_DATABASE_ID is not a database id` | You pasted the name or the account id instead of the database id |
 | `Authentication error [code: 10000]` | The token is wrong, expired, or lacks the permissions in step 4 |
 | `You do not have permission to access this resource` | The token belongs to a different account than `CLOUDFLARE_ACCOUNT_ID` |
+| `The name in your Wrangler configuration file (…) must match the name of your Worker` | The Worker on the dashboard and the `name` in `deploy/wrangler.template.json` differ — rename one to match the other |
+| `Missing entry-point` | The deploy command is missing `--config wrangler.deploy.json`, so Wrangler never finds the generated config |
 | Site opens but pages error | Check **Workers → brandmitra → Logs**, and that the D1 binding is named `DB` |
 
 ## Limits worth knowing
