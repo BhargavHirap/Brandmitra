@@ -21,6 +21,44 @@ site read-only for a day.
 
 ---
 
+## Route B — Workers Builds (no API token, easiest)
+
+Cloudflare can build and deploy this repository itself, on every push, with no token and no
+GitHub secret. Use this route if you would rather not create credentials.
+
+In the Cloudflare dashboard: **Compute (Workers) → Create → Connect to Git**, pick
+`BhargavHirap/Brandmitra`, then set these values **exactly**:
+
+| Field | Value |
+| --- | --- |
+| Worker name | `brandmitra-deploy` |
+| Production branch | `main` |
+| Root directory | `/` |
+| Build command | `node scripts/deploy-config.mjs && npm run build:worker` |
+| Deploy command | `npx wrangler deploy --config wrangler.deploy.json` |
+
+Then open **Settings → Build → Environment variables** (the build environment, not the
+runtime one) and add both, as plain text:
+
+| Name | Value |
+| --- | --- |
+| `D1_DATABASE_ID` | the id from your D1 database page |
+| `KV_NAMESPACE_ID` | the id from your KV namespace page |
+
+The Worker name must stay `brandmitra-deploy`: it is written in
+[`deploy/wrangler.template.json`](../deploy/wrangler.template.json), and Cloudflare rejects a
+build that deploys to a different name.
+
+Why those commands: `npm run build` alone produces a Next.js folder that Cloudflare cannot run.
+`npm run build:worker` runs the OpenNext adapter and produces `.open-next/worker.js` plus
+`.open-next/assets`, which is what `wrangler deploy` uploads. The config script has to run first
+because it writes the D1 and KV ids into the Wrangler config.
+
+Runtime secrets (for example `GEMINI_API_KEY`) still go in **Settings → Variables and Secrets**
+of the Worker, never in the repository.
+
+---
+
 ## What runs on a push
 
 [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml):
@@ -39,6 +77,8 @@ The cache uses Workers KV instead of R2, so nothing here needs a credit card.
 The database tables create themselves on the first request — there is no migration step.
 
 ---
+
+## Route A — GitHub Actions with an API token
 
 ## One-time setup (about 10 minutes, on a phone is fine)
 

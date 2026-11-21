@@ -40,9 +40,10 @@ npm run db:sql       # emit db/brandmitra.sql for Cloudflare D1
 to `main` — no manual deploy step, free plan, no credit card. It stays skipped until the
 repository has a `CLOUDFLARE_ACCOUNT_ID` variable, so pushes never go red before setup.
 
-One-time setup: create a free Cloudflare account, a D1 database and a KV namespace, then add
-one secret and three variables on GitHub. The step-by-step, phone-friendly version is
-[Deploy on every push](docs/13-deploy-on-push.md).
+One-time setup: create a free Cloudflare account, a D1 database and a KV namespace, then either
+let **Cloudflare Workers Builds** build the repo on every push (no token needed), or add one
+GitHub secret and three variables for the Actions route. The step-by-step, phone-friendly
+version of both is [Deploy on every push](docs/13-deploy-on-push.md).
 
 Freebuff Sites (the `freebuff.site` address) has no push-to-deploy hook, so that site is still
 published with the **Publish** button. Both are documented in the same guide.
