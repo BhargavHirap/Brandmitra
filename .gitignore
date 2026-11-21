@@ -32,3 +32,6 @@ next-env.d.ts
 /freebuff-sites-build/
 /.open-next/
 /.wrangler/
+
+# deploy config generated from deploy/wrangler.template.json (holds account ids)
+wrangler.deploy.json

@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 --port 3000",
     "typecheck": "tsc --noEmit",
+    "build:worker": "opennextjs-cloudflare build --config wrangler.deploy.json",
+    "deploy": "node scripts/deploy-config.mjs && npm run build:worker && wrangler deploy --config wrangler.deploy.json",
     "db:sql": "node scripts/emit-schema.mjs"
   },
   "keywords": [],

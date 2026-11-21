@@ -34,6 +34,21 @@ npm run db:sql       # emit db/brandmitra.sql for Cloudflare D1
 
 ---
 
+## Deploy on every push
+
+`.github/workflows/deploy.yml` builds and deploys the app to Cloudflare Workers on every push
+to `main` — no manual deploy step, free plan, no credit card. It stays skipped until the
+repository has a `CLOUDFLARE_ACCOUNT_ID` variable, so pushes never go red before setup.
+
+One-time setup: create a free Cloudflare account, a D1 database and a KV namespace, then add
+one secret and three variables on GitHub. The step-by-step, phone-friendly version is
+[Deploy on every push](docs/13-deploy-on-push.md).
+
+Freebuff Sites (the `freebuff.site` address) has no push-to-deploy hook, so that site is still
+published with the **Publish** button. Both are documented in the same guide.
+
+---
+
 ## What works today (Phases 1–4, plus Phase 5 AI features)
 
 - Marketing landing page with pricing read from the database
@@ -99,6 +114,7 @@ WhatsApp and Razorpay, business verification.
 | [Phase 5 guide](docs/10-phase-5-guide.md) | AI copy, the price filter, Gemini setup, credits |
 | [Phase 5 agent guide](docs/11-phase-5-agent-guide.md) | Read-only business agent: the eight reports, the SQL guard, price-change refusals |
 | [Phase 5 marketing guide](docs/12-phase-5-marketing-guide.md) | Marketing studio: draft → preview → approve, the double price filter, campaign storage |
+| [Deploy on every push](docs/13-deploy-on-push.md) | Cloudflare account setup, GitHub secrets/variables, what runs on a push, failure messages |
 
 ---
 
