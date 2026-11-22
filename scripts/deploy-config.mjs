@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Writes wrangler.deploy.json from deploy/wrangler.template.json.
+ * Writes the Wrangler config from deploy/wrangler.template.json.
  *
  * Wrangler needs the real D1 database id and KV namespace id in its config, and
  * those are different for every Cloudflare account. They arrive as environment
@@ -8,6 +8,15 @@
  *
  *   D1_DATABASE_ID   from the D1 database page in the Cloudflare dashboard
  *   KV_NAMESPACE_ID  from the Workers KV page in the Cloudflare dashboard
+ *
+ * Two copies are written on purpose, with identical contents:
+ *
+ *   wrangler.deploy.json  used by the explicit deploy commands in this repo
+ *   wrangler.jsonc        the name Wrangler looks for on its own, so a plain
+ *                         `npx wrangler deploy` in Cloudflare's Build settings
+ *                         works too instead of failing with "Missing entry-point"
+ *
+ * Both are git-ignored: they are build output, not source.
  *
  * Usage:
  *   D1_DATABASE_ID=... KV_NAMESPACE_ID=... node scripts/deploy-config.mjs
@@ -31,7 +40,9 @@ if (problems.length > 0) {
   console.error("Cannot build the deploy config:");
   for (const problem of problems) console.error(`  - ${problem}`);
   console.error(
-    "\nRead docs/13-deploy-on-push.md — it shows where each id comes from in the Cloudflare dashboard.",
+    "\nThese are build-time environment variables, not Worker secrets. On Cloudflare:"
+      + "\n  Worker → Settings → Build → Build configuration → Build variables"
+      + "\nRead docs/13-deploy-on-push.md — it shows where each id comes from in the Cloudflare dashboard.",
   );
   process.exit(1);
 }
@@ -44,7 +55,13 @@ const filled = template
 // Fail loudly here instead of inside wrangler if the file is not valid JSON.
 JSON.parse(filled);
 
-writeFileSync("wrangler.deploy.json", filled);
+for (const file of ["wrangler.deploy.json", "wrangler.jsonc"]) {
+  writeFileSync(file, filled);
+}
 console.log(
-  "Wrote wrangler.deploy.json (D1 " + d1.slice(0, 8) + "…, KV " + kv.slice(0, 8) + "…).",
+  "Wrote wrangler.deploy.json and wrangler.jsonc (D1 "
+    + d1.slice(0, 8)
+    + "…, KV "
+    + kv.slice(0, 8)
+    + "…).",
 );

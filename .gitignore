@@ -33,5 +33,6 @@ next-env.d.ts
 /.open-next/
 /.wrangler/
 
-# deploy config generated from deploy/wrangler.template.json (holds account ids)
+# deploy configs generated from deploy/wrangler.template.json (hold account ids)
 wrangler.deploy.json
+wrangler.jsonc

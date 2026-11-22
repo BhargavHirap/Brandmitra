@@ -34,7 +34,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies from the lockfile
-        run: npm ci
+        run: npm ci --include=dev
 
       - name: TypeScript check
         run: npm run typecheck

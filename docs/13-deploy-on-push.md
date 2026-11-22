@@ -34,8 +34,8 @@ In the Cloudflare dashboard: **Compute (Workers) → Create → Connect to Git**
 | Worker name | `brandmitra` |
 | Production branch | `main` |
 | Root directory | `/` |
-| Build command | `npm ci && npm run build:worker` |
-| Deploy command | `npx wrangler deploy --config wrangler.deploy.json` |
+| Build command | `npm ci --include=dev && npm run build:worker` |
+| Deploy command | `npx wrangler deploy` |
 
 Then open **Settings → Build → Environment variables** (the build environment, not the
 runtime one) and add both, as plain text:
@@ -55,6 +55,15 @@ Why those commands: `npm run build` alone produces a Next.js folder that Cloudfl
 adapter and produces `.open-next/worker.js` plus `.open-next/assets`, which is what
 `wrangler deploy` uploads. `npm ci` is included so the build never depends on Cloudflare
 detecting the lockfile for you.
+
+`--include=dev` matters: `opennextjs-cloudflare` and `wrangler` are dev dependencies, and a
+build machine that sets `NODE_ENV=production` would otherwise skip them and the build would
+fail with `opennextjs-cloudflare: not found`.
+
+The build writes the setup exactly twice — `wrangler.deploy.json` and `wrangler.jsonc`, same
+contents. `wrangler.jsonc` is the name Wrangler looks for by itself, so the deploy command can
+stay the default `npx wrangler deploy`. If you already typed
+`npx wrangler deploy --config wrangler.deploy.json`, that keeps working too.
 
 Runtime secrets (for example `GEMINI_API_KEY`) still go in **Settings → Variables and Secrets**
 of the Worker, never in the repository.
@@ -181,7 +190,10 @@ The same three commands the workflow runs. It needs `CLOUDFLARE_API_TOKEN` and
 | `Authentication error [code: 10000]` | The token is wrong, expired, or lacks the permissions in step 4 |
 | `You do not have permission to access this resource` | The token belongs to a different account than `CLOUDFLARE_ACCOUNT_ID` |
 | `The name in your Wrangler configuration file (…) must match the name of your Worker` | The Worker on the dashboard and the `name` in `deploy/wrangler.template.json` differ — rename one to match the other |
-| `Missing entry-point` | The deploy command is missing `--config wrangler.deploy.json`, so Wrangler never finds the generated config |
+| `Missing entry-point` | The deploy command ran before the build wrote the config, or the build command failed earlier in the log. Check the build command is `npm ci --include=dev && npm run build:worker` and the deploy command is `npx wrangler deploy` |
+| `opennextjs-cloudflare: not found`, `wrangler: not found` | The install skipped dev dependencies — use `npm ci --include=dev` |
+| `Cannot build the deploy config: … is not set` | The two ids are missing from **Build variables** (not runtime Variables & Secrets, and not GitHub) |
+| `Build was timed out` | A build is capped at 20 minutes — open the log to see which step was still running |
 | Site opens but pages error | Check **Workers → brandmitra → Logs**, and that the D1 binding is named `DB` |
 
 ## Limits worth knowing
