@@ -77,7 +77,9 @@ What that means in practice:
 - **It is honest.** The screen says “you still tap send” instead of claiming delivery.
 
 **When you have money:** the WhatsApp Cloud API from Meta gives you real automated
-sending. It needs a Meta Business account, business verification, a dedicated number,
+sending. That wiring is already in the app, so the only step left is the Meta side —
+`docs/16-whatsapp-cloud-api.md` walks through it. It needs a Meta Business account, a
+dedicated number,
 approved templates, and a permanent token. Meta’s pricing changes often — check the
 current rates before promising a customer “free messages”.
 
@@ -102,7 +104,10 @@ meeting, which matters more than a demo that answers one test call.
 
 ## Upgrade order, when there is money
 
-1. **WhatsApp Cloud API** — biggest visible win: confirmations send themselves.
+1. **WhatsApp Cloud API** — biggest visible win: confirmations send themselves. Already
+   coded: set `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`, get two utility templates
+   approved, and flip the switch in the *WhatsApp sending* panel. Guide:
+   `docs/16-whatsapp-cloud-api.md`.
 2. **A phone number + speech** — then the desk can answer, using the same greeting and
    slot rules you already configured.
 3. **Paid AI** — only after call volume outgrows the free tier.

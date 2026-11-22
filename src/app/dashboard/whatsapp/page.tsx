@@ -3,6 +3,7 @@ import { saveWhatsappAction } from "@/app/actions/settings";
 import { PageHeader, Panel } from "@/components/ui";
 import { requireBusiness } from "@/lib/business";
 import { getDb } from "@/lib/db";
+import { isWhatsAppConfigured, whatsAppStatus } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "WhatsApp" };
@@ -44,6 +45,9 @@ export default async function WhatsappPage({
   const { business } = await requireBusiness();
   const params = await searchParams;
   const db = await getDb();
+
+  const cloudApi = isWhatsAppConfigured();
+  const cloudStatus = whatsAppStatus();
 
   const profile = await db.first<{ whatsapp: string; phone: string }>(
     "SELECT whatsapp, phone FROM business_profiles WHERE business_id = ?",
@@ -151,13 +155,42 @@ export default async function WhatsappPage({
         </div>
 
         <div className="space-y-4">
-          <Panel title="Automatic assistant" description="Not connected">
-            <span className="inline-flex rounded-full border border-line bg-canvas px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Not connected
+          <Panel
+            title="Automatic messaging"
+            description={cloudApi ? "Cloud API connected" : "Not connected"}
+          >
+            <span
+              className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                cloudApi ? "bg-success/10 text-success" : "border border-line bg-canvas text-muted"
+              }`}
+            >
+              {cloudApi ? "Connected" : "Not connected"}
             </span>
+            {cloudApi ? (
+              <>
+                <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
+                  Meta is wired up, so the front desk can send booking confirmations and reminders on its
+                  own. Turn it on, and set how early the reminder leaves, in the <em>WhatsApp sending</em>{" "}
+                  panel on the front desk.
+                </p>
+                <Link
+                  href="/dashboard/receptionist"
+                  className="mt-2 inline-block text-[11.5px] font-medium text-brand hover:underline"
+                >
+                  Open the front desk →
+                </Link>
+              </>
+            ) : (
+              <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
+                Two server values are still missing: {""}
+                {cloudStatus.missing.join(" and ")}. Adding them is what turns the front desk&apos;s
+                tap-to-send links into messages that leave by themselves.
+              </p>
+            )}
             <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
-              An assistant that answers “what is on the menu” and takes orders needs Meta&apos;s
-              WhatsApp Cloud API. That needs, in order:
+              An assistant that answers “what is on the menu” and takes orders needs more than
+              sending: Meta&apos;s WhatsApp Cloud API plus a webhook that reads replies. That needs, in
+              order:
             </p>
             <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-[11.5px] leading-relaxed text-muted">
               <li>A Meta Business account and business verification.</li>
@@ -166,8 +199,12 @@ export default async function WhatsappPage({
               <li>Approved message templates for anything outside a 24-hour window.</li>
             </ol>
             <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
-              None of that is configured here, so no chat window is shown and nothing is simulated. Your
-              own catalogue and order tables are ready for it when those keys exist.
+              {cloudApi
+                ? "Sending is connected; reading replies is not, so no chat window is shown and nothing is simulated. Your own catalogue and order tables are ready for the rest."
+                : "None of that is configured here, so no chat window is shown and nothing is simulated. Your own catalogue and order tables are ready for it when those keys exist."}
+            </p>
+            <p className="mt-2 text-[11px] leading-relaxed text-muted">
+              The step-by-step is in <code>docs/16-whatsapp-cloud-api.md</code>.
             </p>
           </Panel>
 

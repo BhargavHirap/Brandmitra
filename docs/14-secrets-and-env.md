@@ -29,6 +29,17 @@ There are two different moments when a value is used:
 | `GEMINI_API_KEY` | Optional | **Secret** | Turns on AI product copy, the read-only business agent and the marketing studio. Read only in server code (`src/lib/ai.ts`); the browser never receives it. | Cloudflare dashboard → **Workers & Pages → brandmitra → Settings → Variables and Secrets** → Add → Type **Secret**. Locally: `.env.local` |
 | `GEMINI_MODEL` | Optional | Variable | Pins a different free model. Default `gemini-3.8-flash`. | Same place as above, type **Text**. Locally: `.env.local` |
 | `GEMINI_API_BASE` | Optional | Variable | Only for a proxy or staging endpoint that speaks the same `/models/<model>:generateContent` shape. Leave unset in normal use. | Same place as above, type **Text** |
+| `WHATSAPP_TOKEN` | Optional | **Secret** | Meta's permanent access token. Turns on automatic confirmations and reminders on the front desk. Read only in `src/lib/whatsapp.ts`; never stored in the database. | Cloudflare → **Variables and Secrets** → type **Secret**. Locally: `.env.local` |
+| `WHATSAPP_PHONE_NUMBER_ID` | Optional | Variable | The phone-number ID from the Meta app's WhatsApp page (a long number, not a phone number). | Same place, type **Text** |
+| `WHATSAPP_TEMPLATE_CONFIRMATION` | Optional | Variable | Name of the approved template for confirmations, with `{{1}}` first name, `{{2}}` day and time, `{{3}}` business name. | Same place, type **Text** |
+| `WHATSAPP_TEMPLATE_REMINDER` | Optional | Variable | Same, for reminders. | Same place, type **Text** |
+| `WHATSAPP_TEMPLATE_LANG` | Optional | Variable | Template language code, e.g. `en` or `hi`. Default `en`. | Same place, type **Text** |
+| `WHATSAPP_API_VERSION` | Optional | Variable | Graph API version, default `v25.0`. Raise it here when Meta retires that version. | Same place, type **Text** |
+| `WHATSAPP_DISPATCH_SECRET` | Optional | **Secret** | Guards `/api/whatsapp/dispatch`, the URL a free scheduler calls. Without it that route refuses to run. | Same place, type **Secret** |
+| `WHATSAPP_API_BASE` | Optional | Variable | Only for a proxy or the local stub used by `npm run check:whatsapp`. Leave unset in normal use. | Same place, type **Text** |
+
+Without the two WhatsApp values nothing is queued and the front desk keeps its free `wa.me` links. The
+`docs/16-whatsapp-cloud-api.md` guide walks through getting them from Meta.
 
 Without `GEMINI_API_KEY` the AI screens are not broken — they show "AI is not connected on this
 deployment" and generate nothing. Nothing is faked.

@@ -5,6 +5,8 @@ import {
   clearFollowUpAction,
   logCallAction,
   saveDeskSettingsAction,
+  saveMessagingSettingsAction,
+  sendMessageNowAction,
   updateAppointmentAction,
 } from "@/app/actions/reception";
 import { DeskScript } from "@/components/desk-script";
@@ -34,6 +36,14 @@ import {
   slotOptions,
   waLink,
 } from "@/lib/reception";
+import {
+  flushMessages,
+  MESSAGE_KIND_LABEL,
+  MESSAGE_STATUS_LABEL,
+  readMessagingSettings,
+  recentMessages,
+  whatsAppStatus,
+} from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Front desk" };
@@ -43,9 +53,12 @@ export const metadata = { title: "Front desk" };
  *
  * What is real here: the slot calendar, the call log, the follow-up queue, the
  * recall list, the morning report, and one-tap WhatsApp links with the message
- * already written. What is NOT real: nobody answers the phone for the owner yet.
- * That needs a telephone line and a speech service, so the page says so instead
- * of pretending a call was answered.
+ * already written. If the owner has connected Meta's WhatsApp Cloud API, the
+ * confirmations and reminders also go out on their own from the outbox below.
+ *
+ * What is NOT real: nobody answers the phone for the owner yet. That needs a
+ * telephone line and a speech service, so the page says so instead of
+ * pretending a call was answered.
  */
 
 type DeskCallRow = {
@@ -82,6 +95,10 @@ const ERROR_TEXT: Record<string, string> = {
   slot: "That slot is not one of your open slots. Pick a time from the list.",
   slotTaken: "Someone is already booked at that time. Pick another slot.",
   appointment: "That booking could not be found.",
+  waNotConnected:
+    "Automatic sending is still off: this deployment has no Meta credentials yet. Add WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID (docs/16-whatsapp-cloud-api.md), then turn it on.",
+  waSend: "Meta did not accept the message. The reason is written next to it in the list below.",
+  message: "That message could not be found.",
 };
 
 const OUTCOME_LABEL: Record<string, string> = {
@@ -136,6 +153,22 @@ export default async function FrontDeskPage({
     followup_hours: Number(settingsRow?.followup_hours) || 2,
   };
 
+  // Automatic WhatsApp: the owner's choice, plus whether Meta can actually take
+  // a message. `waStatus.ready` is the source of every "connected" badge below.
+  const messaging = await readMessagingSettings(db, business.id);
+  const waStatus = whatsAppStatus();
+  const autoSend = messaging.auto_send === 1 && waStatus.ready;
+
+  // Visiting the desk is also a send. Anything already due goes out now, so a
+  // reminder never waits for the next cron tick when the owner is right here.
+  if (autoSend) {
+    try {
+      await flushMessages({ businessId: business.id, limit: 5 });
+    } catch {
+      /* the outbox keeps the row and its error; the page still draws */
+    }
+  }
+
   const todayKey = istDateKey();
   const tomorrowKey = addDaysKey(todayKey, 1);
   const yesterdayKey = addDaysKey(todayKey, -1);
@@ -143,7 +176,7 @@ export default async function FrontDeskPage({
   const tomorrowStart = istIso(tomorrowKey, "00:00");
   const yesterdayStart = istIso(yesterdayKey, "00:00");
 
-  const [appointments, todayCalls, yesterdayCalls, yesterdayBookings, recentCalls, followUps, recalls, profile, aiUsage] =
+  const [appointments, todayCalls, yesterdayCalls, yesterdayBookings, recentCalls, followUps, recalls, profile, aiUsage, messages] =
     await Promise.all([
       db.all<DeskAppointmentRow>(
         `SELECT id, customer_name, phone, service, starts_at, status, source, notes, value_inr, created_at
@@ -197,6 +230,7 @@ export default async function FrontDeskPage({
         [business.id],
       ),
       getAiUsage(db, business.id, planId),
+      recentMessages(db, business.id, 8),
     ]);
 
   const bookedSlots = new Set(appointments.map((row) => row.starts_at));
@@ -226,7 +260,11 @@ export default async function FrontDeskPage({
       <PageHeader
         eyebrow="Operate"
         title={desk.title}
-        description={`Every call, slot and callback for ${business.name} in one place. The phone line is not connected yet — the desk records what happens and writes the WhatsApp message for you.`}
+        description={
+          autoSend
+            ? `Every call, slot and callback for ${business.name} in one place, with WhatsApp confirmations and reminders going out on their own. The phone line itself is still not connected.`
+            : `Every call, slot and callback for ${business.name} in one place. The phone line is not connected yet — the desk records what happens and writes the WhatsApp message for you.`
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-line bg-white px-2.5 py-1 text-[10.5px] font-medium text-muted">
@@ -253,13 +291,17 @@ export default async function FrontDeskPage({
         <div className="rounded-[10px] border border-success/20 bg-success/5 px-3.5 py-2.5 text-[12.5px] text-success">
           {params.saved === "booked"
             ? `Booked. Send the confirmation below so the ${desk.person} has it in writing.`
-            : params.saved === "call"
-              ? "Call logged."
-              : params.saved === "settings"
-                ? "Front desk settings saved."
-                : params.saved === "followup"
-                  ? "Marked as called back."
-                  : "Saved."}
+            : params.saved === "sent"
+              ? `Booked, and the WhatsApp confirmation went out through Meta. The reminder is queued for its own time.`
+              : params.saved === "messaging"
+                ? "WhatsApp sending saved."
+                : params.saved === "call"
+                  ? "Call logged."
+                  : params.saved === "settings"
+                    ? "Front desk settings saved."
+                    : params.saved === "followup"
+                      ? "Marked as called back."
+                      : "Saved."}
         </div>
       )}
       {params.error && ERROR_TEXT[params.error] && (
@@ -293,6 +335,7 @@ export default async function FrontDeskPage({
             )}, ${settings.slot_minutes} min). ${closedDayLabels(settings.closed_days)}.`}
           >
             <form action={bookSlotAction} className="grid gap-3 sm:grid-cols-2">
+              <input type="hidden" name="language" value={language} />
               <div className="sm:col-span-2">
                 <label className="label" htmlFor="startsAt">
                   Slot
@@ -692,6 +735,166 @@ export default async function FrontDeskPage({
             )}
           </Panel>
 
+          <Panel
+            title="WhatsApp sending"
+            description={
+              autoSend
+                ? "On — confirmations and reminders leave on their own"
+                : waStatus.ready
+                  ? "Connected, but switched off"
+                  : "Not connected — tap-to-send links still work"
+            }
+          >
+            <span
+              className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                autoSend
+                  ? "bg-success/10 text-success"
+                  : waStatus.ready
+                    ? "bg-brand/10 text-brand"
+                    : "border border-line bg-canvas text-muted"
+              }`}
+            >
+              {autoSend ? "Sending" : waStatus.ready ? "Connected" : "Not connected"}
+            </span>
+
+            {waStatus.ready ? (
+              <>
+                <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
+                  Meta accepts messages from this deployment
+                  {messaging.display_number ? ` as ${messaging.display_number}` : ""}. A confirmation goes out
+                  the moment you book; the reminder leaves {messaging.reminder_hours_before} hours before the
+                  slot.
+                </p>
+                <p className="mt-2 text-[11px] leading-relaxed text-muted">
+                  {waStatus.templateNames.confirmation && waStatus.templateNames.reminder
+                    ? `Templates: ${waStatus.templateNames.confirmation} and ${waStatus.templateNames.reminder} (${waStatus.templateNames.lang}).`
+                    : "No approved template named, so plain text is attempted. Meta usually allows that only inside a 24-hour window — set WHATSAPP_TEMPLATE_CONFIRMATION and WHATSAPP_TEMPLATE_REMINDER once your templates are approved."}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
+                  Two server values are still missing. Nothing is queued or sent until they exist:
+                </p>
+                <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[11px] leading-relaxed text-muted">
+                  {waStatus.missing.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11px] leading-relaxed text-muted">
+                  The Meta step-by-step is in <code>docs/16-whatsapp-cloud-api.md</code>, and the exact
+                  place to paste the values is in <code>docs/14-secrets-and-env.md</code>. Meanwhile every
+                  booking keeps its one-tap link — that part needs no account.
+                </p>
+              </>
+            )}
+
+            <form action={saveMessagingSettingsAction} className="mt-3 space-y-2.5 border-t border-line pt-3">
+              <label className="flex items-center gap-2 text-[12px] font-medium">
+                <input
+                  type="checkbox"
+                  name="autoSend"
+                  defaultChecked={messaging.auto_send === 1}
+                  className="h-3.5 w-3.5"
+                />
+                Send confirmations and reminders automatically
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="label" htmlFor="reminderHoursBefore">
+                    Reminder before (hours)
+                  </label>
+                  <input
+                    id="reminderHoursBefore"
+                    name="reminderHoursBefore"
+                    type="number"
+                    min={1}
+                    max={72}
+                    defaultValue={messaging.reminder_hours_before}
+                    className="field"
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="displayNumber">
+                    WhatsApp number
+                  </label>
+                  <input
+                    id="displayNumber"
+                    name="displayNumber"
+                    maxLength={30}
+                    defaultValue={messaging.display_number}
+                    placeholder="+91 98765 43210"
+                    className="field"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="label" htmlFor="phoneNumberId">
+                  Meta phone-number ID (only if this business has its own)
+                </label>
+                <input
+                  id="phoneNumberId"
+                  name="phoneNumberId"
+                  maxLength={40}
+                  defaultValue={messaging.phone_number_id}
+                  placeholder="Leave blank to use the deployment's number"
+                  className="field"
+                />
+              </div>
+              <button type="submit" className="btn btn-ghost text-[12px]">
+                Save sending
+              </button>
+            </form>
+
+            {messages.length > 0 && (
+              <ul className="mt-3 space-y-2 border-t border-line pt-3">
+                {messages.map((message) => (
+                  <li key={message.id} className="rounded-xl border border-line p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11.5px] font-medium">
+                        {MESSAGE_KIND_LABEL[message.kind] ?? message.kind} · +{message.to_phone}
+                      </p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] ${
+                          message.status === "sent"
+                            ? "bg-success/10 text-success"
+                            : message.status === "failed"
+                              ? "bg-danger/10 text-danger"
+                              : "bg-canvas text-muted"
+                        }`}
+                      >
+                        {MESSAGE_STATUS_LABEL[message.status] ?? message.status}
+                      </span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-[10.5px] leading-relaxed text-muted">{message.body}</p>
+                    {message.error && message.status !== "sent" && (
+                      <p className="mt-1 text-[10px] leading-relaxed text-danger">{message.error}</p>
+                    )}
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-muted">
+                        {message.status === "sent" && message.sent_at
+                          ? `Sent ${formatSlotRelative(message.sent_at, todayKey)}`
+                          : `Due ${formatSlotRelative(message.send_at, todayKey)}`}
+                      </span>
+                      {waStatus.ready && message.status !== "sent" && (
+                        <form action={sendMessageNowAction}>
+                          <input type="hidden" name="messageId" value={message.id} />
+                          <button type="submit" className="text-[10.5px] text-brand hover:underline">
+                            {message.status === "failed" ? "Retry" : "Send now"}
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-2 text-[10.5px] leading-relaxed text-muted">
+              A message shows "Sent" only after Meta returns a message id. Scheduled ones leave when the
+              desk is opened, or on the hour if you point a free scheduler at the dispatch URL in the docs.
+            </p>
+          </Panel>
+
           <Panel title="The phone line" description="Not connected">
             <span className="inline-flex rounded-full border border-line bg-canvas px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
               Not connected
@@ -844,8 +1047,9 @@ export default async function FrontDeskPage({
               </li>
             </ul>
             <p className="mt-2 text-[10.5px] leading-relaxed text-muted">
-              Every WhatsApp button opens WhatsApp with this text typed in. You still tap send — there is
-              no WhatsApp API connected, and no message is sent for you.
+              {autoSend
+                ? "These are the same words the automatic messages use, so you can read them before they leave. Every button still opens WhatsApp with the text typed in, if you would rather send it by hand."
+                : "Every WhatsApp button opens WhatsApp with this text typed in. You still tap send — there is no WhatsApp API connected, and no message is sent for you."}
             </p>
           </Panel>
         </div>

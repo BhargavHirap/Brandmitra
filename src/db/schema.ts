@@ -395,6 +395,35 @@ CREATE TABLE IF NOT EXISTS desk_appointments (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_desk_appts_business ON desk_appointments(business_id, starts_at);
+
+CREATE TABLE IF NOT EXISTS desk_messaging (
+  business_id TEXT PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE,
+  auto_send INTEGER NOT NULL DEFAULT 0,
+  reminder_hours_before INTEGER NOT NULL DEFAULT 24,
+  phone_number_id TEXT NOT NULL DEFAULT '',
+  display_number TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS desk_messages (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  appointment_id TEXT,
+  kind TEXT NOT NULL DEFAULT 'confirmation',
+  to_phone TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  language TEXT NOT NULL DEFAULT 'hinglish',
+  params TEXT NOT NULL DEFAULT '[]',
+  send_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  provider_id TEXT NOT NULL DEFAULT '',
+  error TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  sent_at TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_desk_messages_once ON desk_messages(business_id, appointment_id, kind);
+CREATE INDEX IF NOT EXISTS idx_desk_messages_due ON desk_messages(status, send_at);
 `;
 
 export const SEED_SQL = `

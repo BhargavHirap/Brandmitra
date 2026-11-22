@@ -616,6 +616,56 @@ test("a clinic front desk books a slot, chases a callback and closes it", { time
       "the Hinglish confirmation is written for them",
     );
 
+    /* ---- Automatic WhatsApp refuses to lie about being connected --- */
+    assert.ok(page.includes("WhatsApp sending"), "the desk shows whether sending is on");
+    assert.equal(
+      database()
+        .prepare("SELECT COUNT(*) AS n FROM desk_messages WHERE business_id = ?")
+        .get(business.id).n,
+      0,
+      "with no Meta credentials nothing is queued — the tap-to-send link is the honest path",
+    );
+
+    // Turning it on while Meta is unconfigured must be refused, not accepted and
+    // then silently ignored.
+    location = await owner.submit("/dashboard/receptionist", {
+      autoSend: "on",
+      reminderHoursBefore: "12",
+      displayNumber: "+91 98765 43210",
+    });
+    assert.equal(location, "/dashboard/receptionist?error=waNotConnected");
+    assert.equal(
+      database()
+        .prepare("SELECT COUNT(*) AS n FROM desk_messaging WHERE business_id = ? AND auto_send = 1")
+        .get(business.id).n,
+      0,
+      "auto-send must stay off when Meta is not configured",
+    );
+
+    // The settings themselves still save, so the owner can prepare before the key exists.
+    location = await owner.submit("/dashboard/receptionist", {
+      reminderHoursBefore: "12",
+      displayNumber: "+91 98765 43210",
+    });
+    assert.equal(location, "/dashboard/receptionist?saved=messaging");
+    const messaging = row(
+      "SELECT auto_send, reminder_hours_before, display_number FROM desk_messaging WHERE business_id = ?",
+      business.id,
+    );
+    assert.equal(messaging.reminder_hours_before, 12);
+    assert.equal(messaging.display_number, "+91 98765 43210");
+    assert.equal(messaging.auto_send, 0);
+
+    // The scheduled sender is closed until someone sets its secret.
+    if (!process.env.WHATSAPP_DISPATCH_SECRET) {
+      const dispatch = await fetch(new URL("/api/whatsapp/dispatch?key=guess", server.base));
+      assert.equal(dispatch.status, 503, "the dispatch route must not run unguarded");
+      assert.ok(
+        (await dispatch.text()).includes("WHATSAPP_DISPATCH_SECRET"),
+        "the refusal says which value is missing",
+      );
+    }
+
     /* ---- "Call later" starts a callback with a booking link -------- */
     location = await owner.submit("/dashboard/receptionist", {
       customerName: "Rakesh",

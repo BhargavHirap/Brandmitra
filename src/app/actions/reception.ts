@@ -14,6 +14,12 @@ import { logAudit, requireBusiness } from "@/lib/business";
 import { getDb, type Db } from "@/lib/db";
 import { industryLabel } from "@/lib/industries";
 import {
+  flushMessages,
+  isWhatsAppConfigured,
+  queueAppointmentMessages,
+  readMessagingSettings,
+} from "@/lib/whatsapp";
+import {
   addDaysKey,
   deskFor,
   istDateKey,
@@ -33,10 +39,14 @@ import {
  * Everything is tenant-scoped by `requireBusiness()`, so the business id comes
  * from the signed-in user's membership row and never from the form.
  *
- * Nothing here sends a WhatsApp message or answers a phone. The free deployment
- * has no telephony and no WhatsApp API, so the app records what the owner did
- * and hands them a tap-to-send link. That is deliberate: a fake "message sent"
- * badge would be worse than a link.
+ * Nothing here answers a phone: that needs a telephone line and a speech service.
+ *
+ * WhatsApp is different. When `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`
+ * exist the desk queues its confirmations and reminders in `desk_messages` and
+ * `flushMessages()` sends them through Meta's Cloud API. When they do not exist
+ * nothing is queued and every screen still offers the free tap-to-send link, so
+ * the product works with no Meta account at all. A message only ever shows as
+ * sent when Meta returned a message id for it.
  */
 
 const OUTCOMES = ["missed", "answered", "booked", "followup"] as const;
@@ -220,6 +230,8 @@ export async function bookSlotAction(formData: FormData): Promise<void> {
   const value = number(formData, "value", 0, 1_000_000, 0);
   const startsAt = text(formData, "startsAt", 40);
   const source = text(formData, "source", 10) === "walkin" ? "walkin" : "phone";
+  const language = (MESSAGE_LANGUAGES.find((item) => item.id === text(formData, "language", 20))?.id ??
+    "hinglish") as MessageLanguage;
 
   if (customerName.length < 2) redirect("/dashboard/receptionist?error=name");
   if (phone && !PHONE.test(phone)) redirect("/dashboard/receptionist?error=phone");
@@ -304,8 +316,39 @@ export async function bookSlotAction(formData: FormData): Promise<void> {
     payload: { startsAt: normalized, service, source, value },
   });
 
+  // Automatic WhatsApp, only when the owner asked for it AND Meta is wired up.
+  // A failure here must never lose the booking, so it is caught and reported
+  // through the outbox status instead of a thrown error.
+  const messaging = await readMessagingSettings(db, business.id);
+  let sent = 0;
+  if (messaging.auto_send === 1 && isWhatsAppConfigured()) {
+    try {
+      const profile = await db.first<{ address: string }>(
+        "SELECT address FROM business_profiles WHERE business_id = ?",
+        [business.id],
+      );
+      await queueAppointmentMessages({
+        businessId: business.id,
+        appointmentId,
+        customerName,
+        phone,
+        service,
+        startsAt: normalized,
+        businessName: business.name,
+        address: profile?.address ?? "",
+        person: deskFor(business.industry).person,
+        language,
+        reminderHoursBefore: messaging.reminder_hours_before,
+      });
+      // The confirmation is due now; the reminder waits for its own time.
+      sent = (await flushMessages({ businessId: business.id, limit: 2 })).sent;
+    } catch {
+      /* left in the outbox for the next flush, with its error recorded there */
+    }
+  }
+
   revalidatePath("/dashboard/receptionist");
-  redirect("/dashboard/receptionist?saved=booked");
+  redirect(sent > 0 ? "/dashboard/receptionist?saved=sent" : "/dashboard/receptionist?saved=booked");
 }
 
 export async function updateAppointmentAction(formData: FormData): Promise<void> {
@@ -320,6 +363,16 @@ export async function updateAppointmentAction(formData: FormData): Promise<void>
     `UPDATE desk_appointments SET status = ? WHERE id = ? AND business_id = ?`,
     [status, id, business.id],
   );
+
+  // A cancelled visit must not get its reminder tomorrow morning.
+  if (status === "cancelled") {
+    await db.run(
+      `UPDATE desk_messages
+          SET status = 'skipped', error = 'The booking was cancelled.'
+        WHERE business_id = ? AND appointment_id = ? AND status = 'queued'`,
+      [business.id, id],
+    );
+  }
 
   await logAudit({
     businessId: business.id,
@@ -358,6 +411,109 @@ export async function clearFollowUpAction(formData: FormData): Promise<void> {
 
   revalidatePath("/dashboard/receptionist");
   redirect("/dashboard/receptionist?saved=followup");
+}
+
+/* ── Automatic WhatsApp ───────────────────────────────────────────────────── */
+
+/**
+ * Turns automatic sending on or off and sets how early a reminder leaves.
+ *
+ * Saying yes is refused while Meta is not configured, because "auto-send on"
+ * that quietly sends nothing would be the exact kind of lie this project bans.
+ */
+export async function saveMessagingSettingsAction(formData: FormData): Promise<void> {
+  const { user, business } = await requireBusiness();
+
+  const autoSend = String(formData.get("autoSend") ?? "") === "on" ? 1 : 0;
+  const reminderHours = number(formData, "reminderHoursBefore", 1, 72, 24);
+  const phoneNumberId = text(formData, "phoneNumberId", 40);
+  const displayNumber = text(formData, "displayNumber", 30);
+
+  if (displayNumber && !PHONE.test(displayNumber)) {
+    redirect("/dashboard/receptionist?error=phone");
+  }
+  if (autoSend === 1 && !isWhatsAppConfigured()) {
+    redirect("/dashboard/receptionist?error=waNotConnected");
+  }
+
+  const db = await getDb();
+  const now = new Date().toISOString();
+  const existing = await db.first<{ business_id: string }>(
+    "SELECT business_id FROM desk_messaging WHERE business_id = ?",
+    [business.id],
+  );
+
+  if (existing) {
+    await db.run(
+      `UPDATE desk_messaging
+          SET auto_send = ?, reminder_hours_before = ?, phone_number_id = ?, display_number = ?, updated_at = ?
+        WHERE business_id = ?`,
+      [autoSend, reminderHours, phoneNumberId, displayNumber, now, business.id],
+    );
+  } else {
+    await db.run(
+      `INSERT INTO desk_messaging
+         (business_id, auto_send, reminder_hours_before, phone_number_id, display_number, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [business.id, autoSend, reminderHours, phoneNumberId, displayNumber, now],
+    );
+  }
+
+  await logAudit({
+    businessId: business.id,
+    actorUserId: user.id,
+    action: "desk.messaging_saved",
+    entity: "desk_messaging",
+    entityId: business.id,
+    payload: { autoSend, reminderHours },
+  });
+
+  revalidatePath("/dashboard/receptionist");
+  redirect("/dashboard/receptionist?saved=messaging");
+}
+
+/**
+ * Sends one queued or failed message right now.
+ *
+ * The row is moved back to the front of the queue and the same flush that a cron
+ * would call does the sending, so there is exactly one code path that talks to
+ * Meta — no second, subtly different sender.
+ */
+export async function sendMessageNowAction(formData: FormData): Promise<void> {
+  const { user, business } = await requireBusiness();
+  // Named `messageId`, not `id`: the desk has other one-field forms (a callback's
+  // "Done") and two forms with the same field names are a bug waiting to happen.
+  const id = text(formData, "messageId", 40);
+  if (!id) redirect("/dashboard/receptionist?error=message");
+
+  if (!isWhatsAppConfigured()) redirect("/dashboard/receptionist?error=waNotConnected");
+
+  const db = await getDb();
+  const message = await db.first<{ id: string; status: string }>(
+    "SELECT id, status FROM desk_messages WHERE id = ? AND business_id = ?",
+    [id, business.id],
+  );
+  if (!message) redirect("/dashboard/receptionist?error=message");
+  if (message.status === "sent") redirect("/dashboard/receptionist?saved=messaging");
+
+  await db.run(
+    `UPDATE desk_messages SET status = 'queued', send_at = ?, error = '' WHERE id = ? AND business_id = ?`,
+    [new Date().toISOString(), id, business.id],
+  );
+
+  await logAudit({
+    businessId: business.id,
+    actorUserId: user.id,
+    action: "desk.message_resent",
+    entity: "desk_message",
+    entityId: id,
+    payload: {},
+  });
+
+  const result = await flushMessages({ businessId: business.id, limit: 5 });
+
+  revalidatePath("/dashboard/receptionist");
+  redirect(result.sent > 0 ? "/dashboard/receptionist?saved=sent" : "/dashboard/receptionist?error=waSend");
 }
 
 /* ── The optional AI pass ─────────────────────────────────────────────────── */
