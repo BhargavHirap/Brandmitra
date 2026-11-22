@@ -4,6 +4,7 @@ import { ColorField } from "@/components/color-field";
 import { PageHeader, Panel } from "@/components/ui";
 import { TEMPLATES, requireBusiness } from "@/lib/business";
 import { getDb } from "@/lib/db";
+import { industryLabel } from "@/lib/industries";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "My website" };
@@ -345,7 +346,7 @@ export default async function WebsiteSettingsPage({
               style={{ borderLeft: `4px solid ${profile?.brand_color ?? "#2F6BFF"}` }}
             >
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-                {business.industry}
+                {industryLabel(business.industry)}
               </p>
               <p className="mt-1 text-[15px] font-semibold">{business.name}</p>
               <p className="mt-1 text-[11.5px] leading-relaxed text-muted">

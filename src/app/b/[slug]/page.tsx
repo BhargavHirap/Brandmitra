@@ -11,6 +11,7 @@ import {
 } from "@/components/storefront-catalogue";
 import { loadCart } from "@/lib/cart";
 import { getDb } from "@/lib/db";
+import { industryLabel } from "@/lib/industries";
 import { sentenceStart, workspaceFor } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
@@ -136,6 +137,7 @@ export default async function StorefrontPage({
   const socialEntries = Object.entries(social).filter(([, url]) => Boolean(url));
   const whatsappDigits = (store.whatsapp ?? "").replace(/[^\d]/g, "");
   const suspended = store.status === "suspended";
+  const typeLabel = industryLabel(store.industry);
 
   const cart = suspended ? null : await loadCart(store.id);
   const cartError = error ? CART_ERRORS[error] : undefined;
@@ -153,7 +155,7 @@ export default async function StorefrontPage({
             </span>
             <div className="leading-tight">
               <p className="text-[14px] font-semibold tracking-[-0.01em]">{store.name}</p>
-              <p className="text-[11px] capitalize text-muted">{store.industry}</p>
+              <p className="text-[11px] text-muted">{typeLabel}</p>
             </div>
           </div>
           <nav className="flex items-center gap-3 text-[12.5px] text-muted">
@@ -221,7 +223,7 @@ export default async function StorefrontPage({
                 style={{ color: accent }}
               >
                 {store.city ? `${store.city} · ` : ""}
-                {store.industry}
+                {typeLabel}
               </p>
               <h1 className="mt-3 max-w-3xl text-[34px] font-semibold leading-[1.05] tracking-[-0.03em] sm:text-[52px]">
                 {store.tagline || store.name}
