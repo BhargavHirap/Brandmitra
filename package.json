@@ -11,6 +11,7 @@
     "test": "node --test tests/",
     "test:e2e": "node --test tests/",
     "check:whatsapp": "node scripts/check-whatsapp-send.mjs",
+    "grant:founders": "node scripts/grant-founders.mjs",
     "build:worker": "node scripts/deploy-config.mjs && opennextjs-cloudflare build --config wrangler.deploy.json",
     "deploy": "node scripts/deploy-config.mjs && npm run build:worker && wrangler deploy --config wrangler.deploy.json",
     "db:sql": "node scripts/emit-schema.mjs"

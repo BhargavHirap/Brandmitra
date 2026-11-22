@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader, Panel } from "@/components/ui";
 import { getAiUsage } from "@/lib/ai";
-import { productLimitLabel, requireBusiness } from "@/lib/business";
+import { productLimitLabel, requireBusiness, staffLimitLabel } from "@/lib/business";
 import { getDb } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 
@@ -69,7 +69,8 @@ function Bar({
 }
 
 export default async function SubscriptionPage() {
-  const { business, planId } = await requireBusiness();
+  const { business, planId, user } = await requireBusiness();
+  const isFounder = user.isPlatformAdmin;
   const db = await getDb();
 
   const [subscription, plans, productRow, staffRow, credits] = await Promise.all([
@@ -115,13 +116,20 @@ export default async function SubscriptionPage() {
             <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted">
               Current plan
             </p>
-            <p className="mt-1 text-[20px] font-semibold tracking-[-0.02em]">
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-[20px] font-semibold tracking-[-0.02em]">
               {current?.name ?? planId}
+              {isFounder && (
+                <span className="rounded-full border border-brand/25 bg-brand-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-brand">
+                  Founder access
+                </span>
+              )}
             </p>
             <p className="mt-1 text-[12px] text-muted">
-              {current && current.price_inr > 0
-                ? `${formatMoney(current.price_inr)} per month`
-                : "Free — no card, no expiry"}
+              {isFounder
+                ? "Founder access — every screen of this business, every plan's features, nothing to pay"
+                : current && current.price_inr > 0
+                  ? `${formatMoney(current.price_inr)} per month`
+                  : "Free — no card, no expiry"}
               {" · "}
               <span className="capitalize">{status}</span>
             </p>
@@ -138,7 +146,12 @@ export default async function SubscriptionPage() {
             label="Products"
             limitLabel={productLimitLabel(Number(current?.product_limit ?? 10))}
           />
-          <Bar used={staff} limit={Number(current?.staff_limit ?? 1)} label="Team seats" />
+          <Bar
+            used={staff}
+            limit={Number(current?.staff_limit ?? 1)}
+            label="Team seats"
+            limitLabel={staffLimitLabel(Number(current?.staff_limit ?? 1))}
+          />
           <Bar used={credits.used} limit={credits.limit} label="AI credits this month" />
         </div>
       </div>
@@ -169,7 +182,7 @@ export default async function SubscriptionPage() {
                 </p>
                 <ul className="mt-3 space-y-1.5 text-[11.5px] leading-relaxed text-muted">
                   <li>{productLimitLabel(plan.product_limit)} products</li>
-                  <li>{plan.staff_limit} team seat{plan.staff_limit === 1 ? "" : "s"}</li>
+                  <li>{staffLimitLabel(plan.staff_limit)} team seats</li>
                   <li>{plan.ai_credits} AI credits a month</li>
                   {parseFeatures(plan.features).map((feature) => (
                     <li key={feature}>{feature}</li>
@@ -198,9 +211,16 @@ export default async function SubscriptionPage() {
             as described.
           </p>
           <p className="mt-2 text-[12px] leading-relaxed text-muted">
-            Until then, the Free plan is fully usable: unlimited products, 1 seat and 20 AI credits a
-            month.
+            Until then, the Free plan is fully usable: unlimited products, unlimited team seats and 20
+            AI credits a month. No plan caps the size of a team.
           </p>
+          {isFounder && (
+            <p className="mt-2 text-[12px] leading-relaxed text-muted">
+              You are signed in as a founder, so this business has every feature switched on. That flag
+              is set in the database by <code>npm run grant:founders</code> — there is no button for it,
+              and it adds nothing outside the business you already belong to.
+            </p>
+          )}
         </Panel>
 
         <Panel title="What counts against a limit">
@@ -211,7 +231,7 @@ export default async function SubscriptionPage() {
             </li>
             <li>
               <span className="font-semibold text-ink">Team seats</span> — members, including the
-              owner.
+              owner. No plan limits them; the counter is there so you can see who is in.
             </li>
             <li>
               <span className="font-semibold text-ink">AI credits</span> — one per successful draft or

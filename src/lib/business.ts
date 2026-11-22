@@ -45,6 +45,21 @@ export function productLimitLabel(limit: number): string {
   return isUnlimitedProducts(limit) ? "Unlimited" : String(limit);
 }
 
+/**
+ * Team seats are not capped by any plan either. The `plans.staff_limit` column
+ * still exists and `<` is still checked on the server, but every plan stores
+ * this ceiling, so adding a colleague never depends on buying a bigger plan.
+ */
+export const UNLIMITED_STAFF = 1_000_000;
+
+export function isUnlimitedStaff(limit: number): boolean {
+  return Number(limit) >= UNLIMITED_STAFF;
+}
+
+export function staffLimitLabel(limit: number): string {
+  return isUnlimitedStaff(limit) ? "Unlimited" : String(limit);
+}
+
 export const TEMPLATES = [
   { value: "aurora", label: "Aurora", note: "Editorial, image-first" },
   { value: "grid", label: "Grid", note: "Dense catalogue" },
@@ -96,13 +111,24 @@ export async function getMembership(userId: string): Promise<Omit<MembershipCont
   return { business, role, planId: planId ?? "free" };
 }
 
+/**
+ * Founders (`users.is_platform_admin`) belong to the brand's own business and
+ * need to see every screen of it while the product is being shown and tested.
+ * That flag only ever adds permission to a business the person is already a
+ * member of — it never reaches into another business's rows — and it is set by
+ * `npm run grant:founders`, never from a form.
+ */
+export function effectiveRole(user: SessionUser, role: string): string {
+  return user.isPlatformAdmin ? "owner" : role;
+}
+
 /** Use inside any /dashboard page or action. Redirects if the user has no business yet. */
 export async function requireBusiness(): Promise<MembershipContext> {
   const user = await requireUser();
   const membership = await getMembership(user.id);
   if (!membership) redirect("/onboarding");
   if (membership.business.status === "suspended") redirect("/suspended");
-  return { user, ...membership };
+  return { user, ...membership, role: effectiveRole(user, membership.role) };
 }
 
 export async function logAudit(input: {

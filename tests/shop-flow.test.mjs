@@ -316,7 +316,7 @@ test("a new shop signs up and uses the stock, staff and settings actions", { tim
       "restocking should make the product available again",
     );
 
-    /* ---- Staff: seat limit, add, change role, remove -------------- */
+    /* ---- Staff: no seat cap, add, change role, remove ------------- */
     const staffUser = createApi(server.base);
     location = await staffUser.submit("/signup", {
       fullName: "E2E Staff",
@@ -327,20 +327,25 @@ test("a new shop signs up and uses the stock, staff and settings actions", { tim
     const staffRow = row("SELECT id FROM users WHERE email = ?", staffEmail);
     assert.ok(staffRow, "the staff member should have a real account");
 
-    // The Free plan has one seat and the owner already uses it.
+    // Every plan is uncapped: the owner already has one seat and that is not a
+    // reason to refuse a second person.
     location = await owner.submit("/dashboard/staff", { email: staffEmail });
-    assert.equal(location, "/dashboard/staff?error=limit", "the seat limit should be enforced");
     assert.equal(
-      row("SELECT id FROM business_members WHERE business_id = ? AND user_id = ?", business.id, staffRow.id),
-      null,
+      location,
+      "/dashboard/staff?saved=1",
+      "no plan limits team size, so the free plan must accept a second member",
+    );
+
+    // A refusal still has to be a refusal: an address with no account is refused
+    // and stores nothing.
+    location = await owner.submit("/dashboard/staff", { email: `e2e-nobody-${stamp}@example.com` });
+    assert.equal(location, "/dashboard/staff?error=unknown", "an address with no account is refused");
+    assert.equal(
+      row("SELECT COUNT(*) AS n FROM business_members WHERE business_id = ?", business.id).n,
+      2,
       "a refused add must not create a membership",
     );
 
-    // Upgrading is a fixture here: this project has no payment provider yet.
-    database().prepare("UPDATE subscriptions SET plan_id = 'starter' WHERE business_id = ?").run(business.id);
-
-    location = await owner.submit("/dashboard/staff", { email: staffEmail });
-    assert.equal(location, "/dashboard/staff?saved=1", "adding staff on a bigger plan should work");
     const member = row(
       "SELECT id, role FROM business_members WHERE business_id = ? AND user_id = ?",
       business.id,
@@ -706,6 +711,28 @@ test("a clinic front desk books a slot, chases a callback and closes it", { time
     assert.equal(
       row("SELECT status FROM desk_appointments WHERE id = ?", appointment.id).status,
       "completed",
+    );
+
+    /* ---- Team size is uncapped on every plan ----------------------- */
+    assert.equal(
+      row("SELECT staff_limit FROM plans WHERE id = 'free'").staff_limit,
+      1000000,
+      "the free plan must not cap seats",
+    );
+    assert.ok(
+      row("SELECT staff_limit FROM plans WHERE id = 'enterprise'").staff_limit >= 1000000,
+      "no plan caps seats",
+    );
+    const staffPage = await owner.get("/dashboard/staff");
+    assert.equal(staffPage.res.status, 200, "the staff page opens");
+    assert.ok(
+      text(staffPage.html).includes("Unlimited"),
+      "staff seats read Unlimited instead of a number",
+    );
+    const planPage = await owner.get("/dashboard/subscription");
+    assert.ok(
+      text(planPage.html).includes("Unlimited team seats"),
+      "every plan lists unlimited team seats",
     );
 
     /* ---- Every business type gets the desk, in its own words ------- */

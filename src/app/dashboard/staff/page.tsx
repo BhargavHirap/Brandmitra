@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { addStaffAction, changeStaffRoleAction, removeStaffAction } from "@/app/actions/staff";
 import { PageHeader, Panel, Stat } from "@/components/ui";
-import { requireBusiness } from "@/lib/business";
+import { requireBusiness, staffLimitLabel } from "@/lib/business";
 import { getDb } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
 
@@ -103,7 +103,12 @@ export default async function StaffPage({
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Team size" value={`${used} of ${limit}`} hint={`${plan?.name ?? "Free"} plan`} tone="brand" />
+        <Stat
+          label="Team size"
+          value={`${used} of ${staffLimitLabel(limit)}`}
+          hint={`${plan?.name ?? "Free"} plan · no seat cap`}
+          tone="brand"
+        />
         <Stat
           label="Managers"
           value={String(members.filter((member) => member.role === "manager").length)}
@@ -114,7 +119,7 @@ export default async function StaffPage({
           value={ROLE_LABELS[role] ?? role}
           hint={user.email}
         />
-        <Stat label="Seats left" value={String(Math.max(0, limit - used))} hint="Plan allowance" />
+        <Stat label="Seats left" value={staffLimitLabel(limit) === "Unlimited" ? "Unlimited" : String(Math.max(0, limit - used))} hint="Every plan is uncapped" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

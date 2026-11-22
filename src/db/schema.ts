@@ -428,19 +428,19 @@ CREATE INDEX IF NOT EXISTS idx_desk_messages_due ON desk_messages(status, send_a
 
 export const SEED_SQL = `
 INSERT OR IGNORE INTO plans (id, name, price_inr, currency, interval, product_limit, staff_limit, ai_credits, features, is_active, sort_order) VALUES
-  ('free', 'Free', 0, 'INR', 'month', 1000000, 1, 20, '["1 business website","Unlimited products","Order dashboard","20 AI credits / month"]', 1, 1);
+  ('free', 'Free', 0, 'INR', 'month', 1000000, 1000000, 20, '["1 business website","Unlimited products","Unlimited team seats","Order dashboard","20 AI credits / month"]', 1, 1);
 
 INSERT OR IGNORE INTO plans (id, name, price_inr, currency, interval, product_limit, staff_limit, ai_credits, features, is_active, sort_order) VALUES
-  ('starter', 'Starter', 499, 'INR', 'month', 1000000, 3, 200, '["Unlimited products","Website customisation","Order analytics","Basic marketing tools"]', 1, 2);
+  ('starter', 'Starter', 499, 'INR', 'month', 1000000, 1000000, 200, '["Unlimited products","Unlimited team seats","Website customisation","Order analytics","Basic marketing tools"]', 1, 2);
 
 INSERT OR IGNORE INTO plans (id, name, price_inr, currency, interval, product_limit, staff_limit, ai_credits, features, is_active, sort_order) VALUES
-  ('growth', 'Growth', 1499, 'INR', 'month', 1000000, 10, 1000, '["WhatsApp AI assistant","AI marketing studio","Customer management","Advanced analytics"]', 1, 3);
+  ('growth', 'Growth', 1499, 'INR', 'month', 1000000, 1000000, 1000, '["WhatsApp AI assistant","AI marketing studio","Customer management","Advanced analytics"]', 1, 3);
 
 INSERT OR IGNORE INTO plans (id, name, price_inr, currency, interval, product_limit, staff_limit, ai_credits, features, is_active, sort_order) VALUES
-  ('pro', 'Pro', 2999, 'INR', 'month', 1000000, 25, 5000, '["AI business agent","Multi-branch","Staff management","Automation"]', 1, 4);
+  ('pro', 'Pro', 2999, 'INR', 'month', 1000000, 1000000, 5000, '["AI business agent","Multi-branch","Staff management","Automation"]', 1, 4);
 
 INSERT OR IGNORE INTO plans (id, name, price_inr, currency, interval, product_limit, staff_limit, ai_credits, features, is_active, sort_order) VALUES
-  ('enterprise', 'Enterprise', 9999, 'INR', 'month', 1000000, 200, 25000, '["Custom integrations","Advanced permissions","Custom domain","Priority support"]', 1, 5);
+  ('enterprise', 'Enterprise', 9999, 'INR', 'month', 1000000, 1000000, 25000, '["Custom integrations","Advanced permissions","Custom domain","Priority support"]', 1, 5);
 
 -- No plan caps how many products a business can list. The stored value is a
 -- ceiling far above real use and the screens print "Unlimited". These lines
@@ -448,6 +448,15 @@ INSERT OR IGNORE INTO plans (id, name, price_inr, currency, interval, product_li
 UPDATE plans SET product_limit = 1000000 WHERE product_limit < 1000000;
 UPDATE plans SET features = REPLACE(features, 'Up to 10 products', 'Unlimited products');
 UPDATE plans SET features = REPLACE(features, 'Up to 100 products', 'Unlimited products');
+
+-- No plan caps how many people can work in the business either. These lines
+-- also move databases created when Free allowed 1 seat and Enterprise 200.
+UPDATE plans SET staff_limit = 1000000 WHERE staff_limit < 1000000;
+UPDATE plans SET features = REPLACE(features, '"1 team seat"', '"Unlimited team seats"');
+UPDATE plans SET features = REPLACE(features, '"3 team seats"', '"Unlimited team seats"');
+UPDATE plans SET features = REPLACE(features, '"10 team seats"', '"Unlimited team seats"');
+UPDATE plans SET features = REPLACE(features, '"25 team seats"', '"Unlimited team seats"');
+UPDATE plans SET features = REPLACE(features, '"200 team seats"', '"Unlimited team seats"');
 `;
 
 /** Split a multi-statement SQL string into individual statements. */
