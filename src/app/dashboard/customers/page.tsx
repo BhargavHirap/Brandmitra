@@ -3,6 +3,7 @@ import { EmptyState, PageHeader, Panel, Stat } from "@/components/ui";
 import { requireBusiness } from "@/lib/business";
 import { getDb } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
+import { workspaceFor } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Customers" };
@@ -32,6 +33,7 @@ export default async function CustomersPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const { business } = await requireBusiness();
+  const ws = workspaceFor(business.industry);
   const params = await searchParams;
   const db = await getDb();
 
@@ -91,20 +93,20 @@ export default async function CustomersPage({
     <div className="space-y-4 sm:space-y-5">
       <PageHeader
         eyebrow="Operate"
-        title="Customers"
-        description="Everyone who has checked out on your storefront, with what they have spent. Created automatically from the phone number given at checkout."
+        title={ws.customers}
+        description={`Everyone who has checked out on your storefront, with what they have spent. Created automatically from the phone number given at checkout.`}
         actions={
           <Link href="/dashboard/orders" className="btn btn-ghost text-[12.5px]">
-            View orders
+            {ws.orders}
           </Link>
         }
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Customers" value={String(total)} hint="All time" tone="brand" />
+        <Stat label={ws.customers} value={String(total)} hint="All time" tone="brand" />
         <Stat label="Repeat" value={String(repeat)} hint="Ordered more than once" />
         <Stat label="New this month" value={String(newThisMonth)} hint="First order this month" />
-        <Stat label="Average spend" value={formatMoney(averageSpend)} hint="Per customer with orders" />
+        <Stat label="Average spend" value={formatMoney(averageSpend)} hint={`Per ${ws.customer} with orders`} />
       </div>
 
       <Panel padded={false}>
@@ -113,7 +115,7 @@ export default async function CustomersPage({
             type="search"
             name="q"
             defaultValue={q}
-            placeholder="Search by name, phone or email"
+            placeholder={`Search ${ws.customers.toLowerCase()} by name, phone or email`}
             aria-label="Search customers"
             className="field sm:max-w-sm"
           />
@@ -132,11 +134,11 @@ export default async function CustomersPage({
         {customers.length === 0 ? (
           <div className="p-4">
             <EmptyState
-              title={q ? "No customer matches that search" : "No customers yet"}
+              title={q ? "No match for that search" : `No ${ws.customers.toLowerCase()} yet`}
               description={
                 q
                   ? "Try a phone number or just part of the name."
-                  : "Customers are created the first time someone checks out. Share your storefront link to get the first one."
+                  : `${ws.customers} are created the first time someone checks out. Share your storefront link to get the first one.`
               }
               action={
                 <Link href={`/b/${business.slug}`} target="_blank" className="btn btn-brand text-[12.5px]">
@@ -154,7 +156,7 @@ export default async function CustomersPage({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-medium">
-                    {customer.name || "Customer"}
+                    {customer.name || ws.customer}
                   </p>
                   <p className="mt-0.5 truncate text-[11.5px] text-muted">
                     {customer.phone || "No phone"}
@@ -179,8 +181,8 @@ export default async function CustomersPage({
       </Panel>
 
       <p className="px-1 text-[11.5px] leading-relaxed text-muted">
-        Customer details are visible only inside this dashboard. Nothing here is shared between
-        businesses, and the storefront never lists your customer list.
+        These details are visible only inside this dashboard. Nothing here is shared between
+        businesses, and the storefront never lists your {ws.customers.toLowerCase()} list.
       </p>
     </div>
   );

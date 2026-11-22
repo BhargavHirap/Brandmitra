@@ -95,7 +95,7 @@ export default async function OrderReceiptPage({
       <header className="border-b border-line bg-white">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between gap-3 px-5">
           <Link href={`/b/${order.store_slug}`} className="text-[12.5px] text-muted hover:text-ink">
-            ← Back to menu
+            ← Back to the catalogue
           </Link>
           <div className="flex items-center gap-2">
             <span

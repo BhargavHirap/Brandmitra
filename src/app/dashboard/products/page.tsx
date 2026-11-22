@@ -2,6 +2,7 @@ import Link from "next/link";
 import { toggleProductAction } from "@/app/actions/products";
 import { EmptyState, PageHeader, Panel } from "@/components/ui";
 import { productLimitLabel, requireBusiness } from "@/lib/business";
+import { workspaceFor } from "@/lib/workspace";
 import { getDb } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 
@@ -41,6 +42,7 @@ export default async function ProductsPage({
   }>;
 }) {
   const { business, planId } = await requireBusiness();
+  const ws = workspaceFor(business.industry);
   const params = await searchParams;
   const db = await getDb();
 
@@ -100,18 +102,20 @@ export default async function ProductsPage({
     <div className="space-y-4 sm:space-y-5">
       <PageHeader
         eyebrow="Catalogue"
-        title="Products"
-        description="Everything you sell, with prices and customisation options. Changes appear on your storefront immediately."
+        title={ws.items}
+        description={`Everything you sell, with prices and customisation options. Changes appear on your storefront immediately.`}
         actions={
           <>
-            <Link href="/dashboard/products/import" className="btn btn-ghost text-[12.5px]">
-              Import menu photo
-            </Link>
+            {ws.importLabel && (
+              <Link href="/dashboard/products/import" className="btn btn-ghost text-[12.5px]">
+                {ws.importLabel}
+              </Link>
+            )}
             <Link href="/dashboard/categories" className="btn btn-ghost text-[12.5px]">
-              Categories
+              {ws.categories}
             </Link>
             <Link href="/dashboard/products/new" className="btn btn-brand text-[12.5px]">
-              Add product
+              Add {ws.item}
             </Link>
           </>
         }
@@ -124,7 +128,7 @@ export default async function ProductsPage({
       )}
       {params.deleted === "1" && (
         <div className="rounded-[10px] border border-line bg-white px-3.5 py-2.5 text-[12.5px] text-muted">
-          Product deleted. Your other items are untouched.
+          Deleted. Your other entries are untouched.
         </div>
       )}
       {params.imported && (
@@ -146,7 +150,7 @@ export default async function ProductsPage({
       <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-[12.5px] font-semibold">
-            {total} of {productLimitLabel(limit)} products used
+            {total} of {productLimitLabel(limit)} {ws.itemsLower} used
           </p>
           <p className="mt-0.5 text-[11.5px] text-muted">
             {active} visible on the storefront · {total - active} hidden · {plan?.name ?? "Free"} plan
@@ -171,7 +175,7 @@ export default async function ProductsPage({
             type="search"
             name="q"
             defaultValue={q}
-            placeholder="Search products"
+            placeholder={`Search ${ws.itemsLower}`}
             className="field sm:max-w-xs"
             aria-label="Search products"
           />
@@ -203,11 +207,11 @@ export default async function ProductsPage({
         {products.length === 0 ? (
           <div className="p-4">
             <EmptyState
-              title={filtered ? "No products match this filter" : "Your catalogue is empty"}
+              title={filtered ? `No ${ws.itemsLower} match this filter` : "Your catalogue is empty"}
               description={
                 filtered
                   ? "Try a different search term or clear the category filter."
-                  : "Add your first product — a name, a price and an optional photo. Customers see it on your storefront right away."
+                  : `Add your first ${ws.item} — a name, a price and an optional photo. Customers see it on your storefront right away.`
               }
               action={
                 filtered ? (
@@ -216,7 +220,7 @@ export default async function ProductsPage({
                   </Link>
                 ) : (
                   <Link href="/dashboard/products/new" className="btn btn-brand text-[12.5px]">
-                    Add your first product
+                    Add your first {ws.item}
                   </Link>
                 )
               }
@@ -254,7 +258,7 @@ export default async function ProductsPage({
                     )}
                   </div>
                   <p className="mt-0.5 truncate text-[11px] text-muted">
-                    {product.category_name ?? "No category"}
+                    {product.category_name ?? `No ${ws.category.toLowerCase()}`}
                     {Number(product.option_groups) > 0
                       ? ` · ${product.option_groups} customisation group${Number(product.option_groups) === 1 ? "" : "s"}`
                       : ""}
@@ -305,8 +309,8 @@ export default async function ProductsPage({
       </Panel>
 
       <p className="px-1 text-[11.5px] leading-relaxed text-muted">
-        Product limits come from your plan and are checked again on the server, so a limit cannot
-        be bypassed from the browser.
+        Limits come from your plan and are checked again on the server, so a limit cannot be
+        bypassed from the browser.
       </p>
     </div>
   );

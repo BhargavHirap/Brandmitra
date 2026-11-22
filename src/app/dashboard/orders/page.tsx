@@ -4,6 +4,7 @@ import { requireBusiness } from "@/lib/business";
 import { getDb } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { OPEN_STATUSES, ORDER_STATUSES, STATUS_TONES, statusLabel } from "@/lib/orders";
+import { workspaceFor } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Orders" };
@@ -28,6 +29,7 @@ export default async function OrdersPage({
   searchParams: Promise<{ status?: string; error?: string }>;
 }) {
   const { business } = await requireBusiness();
+  const ws = workspaceFor(business.industry);
   const params = await searchParams;
   const db = await getDb();
 
@@ -65,8 +67,8 @@ export default async function OrdersPage({
     <div className="space-y-4 sm:space-y-5">
       <PageHeader
         eyebrow="Operate"
-        title="Orders"
-        description="Every order placed on your storefront, with the exact items, options and prices recorded at checkout."
+        title={ws.orders}
+        description={`Every ${ws.order} placed on your storefront, with the exact items, options and prices recorded at checkout.`}
         actions={
           <Link href={`/b/${business.slug}`} target="_blank" className="btn btn-ghost text-[12.5px]">
             View storefront
@@ -76,13 +78,13 @@ export default async function OrdersPage({
 
       {params.error === "missing" && (
         <div className="rounded-[10px] border border-danger/20 bg-danger/5 px-3.5 py-2.5 text-[12.5px] text-danger">
-          That order no longer exists for this business.
+          That {ws.order} no longer exists for this business.
         </div>
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Open orders" value={String(openCount)} hint="Not yet delivered" tone="brand" />
-        <Stat label="All orders" value={String(allCount)} hint="Including cancelled" />
+        <Stat label={`Open ${ws.orders.toLowerCase()}`} value={String(openCount)} hint="Not yet finished" tone="brand" />
+        <Stat label={`All ${ws.orders.toLowerCase()}`} value={String(allCount)} hint="Including cancelled" />
         <Stat
           label="Revenue"
           value={formatMoney(Number(totals?.revenue ?? 0))}
@@ -115,7 +117,8 @@ export default async function OrdersPage({
         {orders.length === 0 ? (
           <div className="p-4">
             <EmptyState
-              title={filter === "all" ? "No orders yet" : `No ${statusLabel(filter).toLowerCase()} orders`}
+              title={filter === "all"                   ? `No ${ws.orders.toLowerCase()} yet`
+                  : `No ${statusLabel(filter).toLowerCase()} ${ws.orders.toLowerCase()}`}
               description={
                 filter === "all"
                   ? "Share your storefront link. Orders placed at checkout appear here instantly, with the items and options the customer chose."

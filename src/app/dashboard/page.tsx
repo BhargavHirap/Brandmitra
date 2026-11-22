@@ -3,6 +3,8 @@ import { EmptyState, PageHeader, Panel, Stat } from "@/components/ui";
 import { isUnlimitedProducts, requireBusiness } from "@/lib/business";
 import { getDb } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
+import { industryLabel } from "@/lib/industries";
+import { workspaceFor } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Overview" };
@@ -52,6 +54,7 @@ export default async function DashboardOverviewPage({
   searchParams: Promise<{ welcome?: string }>;
 }) {
   const { business, planId, role } = await requireBusiness();
+  const ws = workspaceFor(business.industry);
   const { welcome } = await searchParams;
   const db = await getDb();
 
@@ -179,19 +182,19 @@ export default async function DashboardOverviewPage({
       cta: "Edit storefront",
     },
     {
-      label: "First product added",
+      label: `First ${ws.item} added`,
       done: products > 0,
       detail:
         products > 0
-          ? `${products} active product${products === 1 ? "" : "s"}`
-          : "Add your first product and it appears on your storefront",
+          ? `${products} live ${products === 1 ? ws.item : ws.itemsLower}`
+          : `Add your first ${ws.item} and it appears on your storefront`,
     },
     {
-      label: "First order received",
+      label: `First ${ws.order} received`,
       done: totals.orders > 0,
       detail:
         totals.orders > 0
-          ? `${totals.orders} order${totals.orders === 1 ? "" : "s"} recorded`
+          ? `${totals.orders} ${totals.orders === 1 ? ws.order : ws.orders.toLowerCase()} recorded`
           : "Share your storefront link — checkout is live",
     },
   ];
@@ -200,7 +203,7 @@ export default async function DashboardOverviewPage({
   return (
     <div className="space-y-4 sm:space-y-5">
       <PageHeader
-        eyebrow={`${business.industry} · ${role}`}
+        eyebrow={`${industryLabel(business.industry)} · ${role}`}
         title={welcome ? `Welcome, ${business.name}` : "Overview"}
         description={
           welcome
@@ -223,16 +226,24 @@ export default async function DashboardOverviewPage({
         <Stat
           label="Total revenue"
           value={formatMoney(totals.revenue)}
-          hint={`${totals.orders} order${totals.orders === 1 ? "" : "s"} all time`}
+          hint={`${totals.orders} ${totals.orders === 1 ? ws.order : ws.orders.toLowerCase()} all time`}
           tone="brand"
         />
-        <Stat label="Today" value={formatMoney(todayTotals.revenue)} hint={`${todayTotals.orders} orders today`} />
+        <Stat
+          label="Today"
+          value={formatMoney(todayTotals.revenue)}
+          hint={`${todayTotals.orders} ${ws.orders.toLowerCase()} today`}
+        />
         <Stat
           label="This month"
           value={formatMoney(monthTotals.revenue)}
-          hint={`${monthTotals.orders} orders this month`}
+          hint={`${monthTotals.orders} ${ws.orders.toLowerCase()} this month`}
         />
-        <Stat label="Pending orders" value={String(pendingOrders)} hint={`${completedOrders} delivered`} />
+        <Stat
+          label={`Pending ${ws.orders.toLowerCase()}`}
+          value={String(pendingOrders)}
+          hint={`${completedOrders} finished`}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -311,7 +322,7 @@ export default async function DashboardOverviewPage({
         <div className="space-y-4 lg:col-span-2">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
              <Stat
-              label="Products"
+              label={ws.items}
               value={`${products}`}
               hint={
                 isUnlimitedProducts(productLimit)
@@ -319,7 +330,7 @@ export default async function DashboardOverviewPage({
                   : `Limit ${productLimit} on ${plan?.name ?? "Free"}`
               }
             />
-            <Stat label="Customers" value={`${customers}`} hint="Created at first order" />
+            <Stat label={ws.customers} value={`${customers}`} hint={`Created at first ${ws.order}`} />
             <Stat
               label="AI credits"
               value={String(plan?.ai_credits ?? 0)}
@@ -327,12 +338,12 @@ export default async function DashboardOverviewPage({
             />
           </div>
 
-          <Panel title="Top products" description="Ranked by units sold" padded={false}>
+          <Panel title={`Top ${ws.itemsLower}`} description="Ranked by units sold" padded={false}>
             {topProducts.length === 0 ? (
               <div className="p-4">
                 <EmptyState
                   title="No sales data yet"
-                  description="Once orders arrive, your best sellers will be ranked here automatically."
+                  description={`Once ${ws.orders.toLowerCase()} arrive, your best sellers will be ranked here automatically.`}
                 />
               </div>
             ) : (

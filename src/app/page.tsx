@@ -24,7 +24,7 @@ const PILLARS = [
   {
     number: "02",
     title: "One order desk",
-    body: "Web, QR and WhatsApp orders land in the same queue — accept, prepare, dispatch. Kitchen screens update as the status changes.",
+    body: "Orders and bookings from your link land in one queue — accept, prepare, hand over. The fulfilment board updates as the status changes.",
   },
   {
     number: "03",
@@ -120,7 +120,7 @@ export default async function LandingPage() {
                 </div>
                 <div className="grid gap-0 sm:grid-cols-[190px_1fr]">
                   <aside className="hidden flex-col gap-1 border-r border-line p-3 sm:flex">
-                    {["Overview", "My website", "Products", "Orders", "Kitchen", "AI agent"].map((item, index) => (
+                    {["Overview", "My website", "Catalogue", "Orders", "Board", "AI agent"].map((item, index) => (
                       <div
                         key={item}
                         className={`rounded-lg px-2.5 py-1.5 text-[12px] ${
@@ -157,7 +157,7 @@ export default async function LandingPage() {
                       ))}
                     </div>
                     <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
-                      {["Order desk", "Kitchen display", "AI agent"].map((label) => (
+                      {["Order desk", "Fulfilment board", "AI agent"].map((label) => (
                         <div key={label} className="rounded-xl border border-line p-3">
                           <p className="text-[11px] font-medium">{label}</p>
                           <div className="mt-2 space-y-1.5">

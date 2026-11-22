@@ -99,7 +99,7 @@ export function ProductForm({
             defaultValue={product?.category_id ?? ""}
             className="field"
           >
-            <option value="">No category</option>
+            <option value="">Uncategorised</option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}

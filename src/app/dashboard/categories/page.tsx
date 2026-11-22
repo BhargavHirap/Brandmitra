@@ -8,6 +8,7 @@ import {
 import { PageHeader, Panel } from "@/components/ui";
 import { requireBusiness } from "@/lib/business";
 import { getDb } from "@/lib/db";
+import { workspaceFor } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Categories" };
@@ -26,6 +27,8 @@ export default async function CategoriesPage({
   searchParams: Promise<{ saved?: string; deleted?: string; error?: string }>;
 }) {
   const { business } = await requireBusiness();
+  const ws = workspaceFor(business.industry);
+  const groupWord = ws.category.toLowerCase();
   const params = await searchParams;
   const db = await getDb();
 
@@ -42,15 +45,15 @@ export default async function CategoriesPage({
     <div className="space-y-4 sm:space-y-5">
       <PageHeader
         eyebrow="Catalogue"
-        title="Categories"
-        description="Categories become the tabs on your storefront. Order them the way a customer browses your catalogue."
+        title={ws.categories}
+        description={`${ws.categories} become the tabs on your storefront. Order them the way a customer browses your catalogue.`}
         actions={
           <>
             <Link href="/dashboard/products" className="btn btn-ghost text-[12.5px]">
-              Products
+              {ws.items}
             </Link>
             <Link href="/dashboard/products/new" className="btn btn-brand text-[12.5px]">
-              Add product
+              Add {ws.item}
             </Link>
           </>
         }
@@ -63,7 +66,7 @@ export default async function CategoriesPage({
       )}
       {params.deleted === "1" && (
         <div className="rounded-[10px] border border-line bg-white px-3.5 py-2.5 text-[12.5px] text-muted">
-          Category deleted. Its products are still in your catalogue under “No category”.
+          Deleted. Its {ws.itemsLower} are still in your catalogue under “No {groupWord}”.
         </div>
       )}
       {params.error && ERROR_TEXT[params.error] && (
@@ -75,16 +78,16 @@ export default async function CategoriesPage({
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <Panel
-            title="Your categories"
+            title={`Your ${ws.categories.toLowerCase()}`}
             description={`${categories.length} categor${categories.length === 1 ? "y" : "ies"}`}
             padded={false}
           >
             {categories.length === 0 ? (
               <div className="p-4">
-                <p className="text-[13px] font-medium">No categories yet</p>
+                <p className="text-[13px] font-medium">No {ws.categories.toLowerCase()} yet</p>
                 <p className="mt-1 text-[12px] leading-relaxed text-muted">
-                  Add one on the right, for example “Haircuts”, “Bulk cases” or “Combos”. Products without
-                  a category still appear on the storefront, just after the grouped ones.
+                  Add one on the right, for example “{ws.categoryExample}”. {ws.items} without a{" "}
+                  {groupWord} still appear on the storefront, just after the grouped ones.
                 </p>
               </div>
             ) : (
@@ -135,7 +138,7 @@ export default async function CategoriesPage({
                       </form>
 
                       <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-[10.5px] text-muted">
-                        {Number(category.n)} product{Number(category.n) === 1 ? "" : "s"}
+                        {Number(category.n)} {Number(category.n) === 1 ? ws.item : ws.itemsLower}
                       </span>
 
                       <form action={deleteCategoryAction} className="shrink-0">
@@ -157,7 +160,7 @@ export default async function CategoriesPage({
         </div>
 
         <div className="space-y-4">
-          <Panel title="Add a category">
+          <Panel title={`Add a ${groupWord}`}>
             <form action={createCategoryAction} className="space-y-3">
               <div>
                 <label className="label" htmlFor="categoryName">
@@ -169,12 +172,12 @@ export default async function CategoriesPage({
                   required
                   minLength={2}
                   maxLength={40}
-                  placeholder="Coffee"
+                  placeholder={ws.categoryExample}
                   className="field"
                 />
               </div>
               <button type="submit" className="btn btn-brand w-full text-[12.5px]">
-                Add category
+                Add {groupWord}
               </button>
             </form>
           </Panel>
@@ -182,7 +185,7 @@ export default async function CategoriesPage({
           <Panel title="How it behaves">
             <ul className="space-y-2 text-[12px] leading-relaxed text-muted">
               <li>Renaming keeps every product attached.</li>
-              <li>Deleting keeps the products — they move to “No category”.</li>
+              <li>Deleting keeps them — they move to “Uncategorised”.</li>
               <li>Empty categories are hidden from customers automatically.</li>
             </ul>
           </Panel>

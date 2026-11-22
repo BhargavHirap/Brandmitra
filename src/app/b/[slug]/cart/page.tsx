@@ -7,6 +7,7 @@ import { BrandLink } from "@/components/brand";
 import { loadCart } from "@/lib/cart";
 import { getDb } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
+import { workspaceFor } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Your cart" };
@@ -20,7 +21,7 @@ export const metadata: Metadata = { title: "Your cart" };
  */
 
 const ERROR_TEXT: Record<string, string> = {
-  empty: "Your cart is empty — add something from the menu first.",
+  empty: "Your cart is empty — add something from the catalogue first.",
   unavailable: "Some items are no longer available. Remove them and try again.",
   name: "Please enter the name the order should be prepared for.",
   phone: "Please enter a valid phone number with at least 10 digits.",
@@ -35,6 +36,7 @@ type StoreRow = {
   brand_color: string | null;
   phone: string | null;
   whatsapp: string | null;
+  industry: string;
 };
 
 export default async function CartPage({
@@ -49,7 +51,7 @@ export default async function CartPage({
 
   const db = await getDb();
   const store = await db.first<StoreRow>(
-    `SELECT b.id, b.slug, b.name, b.status, p.brand_color, p.phone, p.whatsapp
+    `SELECT b.id, b.slug, b.name, b.status, b.industry, p.brand_color, p.phone, p.whatsapp
        FROM businesses b
        LEFT JOIN business_profiles p ON p.business_id = b.id
       WHERE b.slug = ?`,
@@ -58,6 +60,7 @@ export default async function CartPage({
   if (!store) notFound();
 
   const accent = /^#[0-9a-fA-F]{6}$/.test(store.brand_color ?? "") ? store.brand_color! : "#2F6BFF";
+  const ws = workspaceFor(store.industry);
   const cart = store.status === "active" ? await loadCart(store.id) : null;
   const lines = cart?.lines ?? [];
   const errorMessage = error ? ERROR_TEXT[error] : undefined;
@@ -67,7 +70,7 @@ export default async function CartPage({
       <header className="border-b border-line bg-white">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-5">
           <Link href={`/b/${store.slug}`} className="flex items-center gap-2 text-[12.5px] text-muted hover:text-ink">
-            ← Back to menu
+            ← {ws.storefrontBack}
           </Link>
           <div className="flex items-center gap-2">
             <span
@@ -122,14 +125,14 @@ export default async function CartPage({
           <div className="mt-6 rounded-xl border border-dashed border-line bg-white px-5 py-14 text-center">
             <p className="text-[13.5px] font-medium">Your cart is empty</p>
             <p className="mx-auto mt-1 max-w-md text-[12.5px] leading-relaxed text-muted">
-              Browse {store.name}&apos;s menu and add something you like.
+              Browse {store.name}&apos;s {ws.storefrontList.toLowerCase()} and add something you like.
             </p>
             <Link
               href={`/b/${store.slug}#catalogue`}
               className="btn mt-4 text-white"
               style={{ backgroundColor: accent }}
             >
-              Browse the menu
+              Browse the {ws.storefrontList.toLowerCase()}
             </Link>
           </div>
         ) : (

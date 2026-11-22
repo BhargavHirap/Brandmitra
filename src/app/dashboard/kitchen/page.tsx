@@ -13,9 +13,10 @@ import {
   statusLabel,
   STATUS_TONES,
 } from "@/lib/orders";
+import { workspaceFor, type Workspace } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Kitchen display" };
+export const metadata = { title: "Fulfilment board" };
 
 /**
  * PHASE 4 — KITCHEN DISPLAY
@@ -29,6 +30,15 @@ export const metadata = { title: "Kitchen display" };
  * this business's orders. The status buttons post to the same transition graph
  * the order page uses — the UI is bigger, the rules are identical.
  */
+
+/** The button wording follows the business's own vocabulary. */
+function actionLabel(status: string, ws: Workspace): string {
+  if (status === "preparing") return ws.startAction;
+  if (status === "ready") return ws.readyAction;
+  if (status === "delivered") return ws.handoverAction;
+  if (status === "out_for_delivery") return "Out for delivery";
+  return "Advance";
+}
 
 type TicketRow = {
   id: string;
@@ -86,6 +96,7 @@ export default async function KitchenPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { business } = await requireBusiness();
+  const ws = workspaceFor(business.industry);
   const { error } = await searchParams;
   const db = await getDb();
 
@@ -116,12 +127,12 @@ export default async function KitchenPage({
     <div className="space-y-4">
       <PageHeader
         eyebrow="Operate"
-        title="Kitchen display"
-        description="New tickets land in the first column. Tap the big button to move a ticket along — the customer's receipt updates at the same time."
+        title={ws.board}
+        description={ws.boardIntro}
         actions={
           <>
             <Link href="/dashboard/orders" className="btn btn-ghost text-[12.5px]">
-              Orders desk
+              {ws.orders}
             </Link>
             <Link
               href={`/b/${business.slug}`}
@@ -138,8 +149,8 @@ export default async function KitchenPage({
         <div className="flex items-baseline gap-2">
           <span className="text-[13px] font-semibold">
             {activeCount === 0
-              ? "No tickets in the kitchen"
-              : `${activeCount} ticket${activeCount === 1 ? "" : "s"} in the kitchen`}
+              ? ws.boardEmpty
+              : `${activeCount} ${activeCount === 1 ? ws.order : ws.orders.toLowerCase()} on the board`}
           </span>
           <span className="text-[11px] text-muted">Auto-refreshes — no need to reload</span>
         </div>
@@ -148,7 +159,7 @@ export default async function KitchenPage({
 
       {error === "transition" && (
         <div className="rounded-[10px] border border-danger/20 bg-danger/5 px-3.5 py-2.5 text-[12.5px] text-danger">
-          That move is not allowed from the ticket&apos;s current status. The board below is up to
+          That move is not allowed from its current status. The board below is up to
           date.
         </div>
       )}
@@ -164,15 +175,17 @@ export default async function KitchenPage({
       )}
 
       <div className="grid gap-3 lg:grid-cols-3">
-        {KITCHEN_COLUMNS.map((column) => {
+        {KITCHEN_COLUMNS.map((column, columnIndex) => {
           const rows = tickets.filter((ticket) => (column.statuses as string[]).includes(ticket.status));
 
           return (
             <section key={column.id} className="rounded-2xl border border-line bg-canvas/40">
               <header className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5">
                 <div className="min-w-0">
-                  <h2 className="text-[13px] font-semibold tracking-[-0.01em]">{column.label}</h2>
-                  <p className="text-[10.5px] text-muted">{column.hint}</p>
+                  <h2 className="text-[13px] font-semibold tracking-[-0.01em]">
+                    {ws.columnLabels[columnIndex]}
+                  </h2>
+                  <p className="text-[10.5px] text-muted">{ws.columnHints[columnIndex]}</p>
                 </div>
                 <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-ink px-2 text-[12px] font-semibold tabular-nums text-white">
                   {rows.length}
@@ -184,11 +197,7 @@ export default async function KitchenPage({
                   <div className="rounded-xl border border-dashed border-line bg-white/60 px-3 py-8 text-center">
                     <p className="text-[12.5px] font-medium text-muted">Nothing here</p>
                     <p className="mt-1 text-[11px] text-muted/80">
-                      {column.id === "incoming"
-                        ? "New orders appear automatically."
-                        : column.id === "cooking"
-                          ? "Tickets you start preparing show up here."
-                          : "Finished plates wait here until they are handed over."}
+                      {ws.columnEmpty[columnIndex]}
                     </p>
                   </div>
                 ) : (
@@ -196,7 +205,10 @@ export default async function KitchenPage({
                     const minutes = minutesSince(ticket.created_at);
                     const lines = itemsByOrder.get(ticket.id) ?? [];
                     const actions = KITCHEN_ACTIONS[ticket.status] ?? [];
-                    const [primary, secondary] = actions;
+                    const visible = ws.allowDispatch
+                      ? actions
+                      : actions.filter((action) => action.status !== "out_for_delivery");
+                    const [primary, secondary] = visible;
                     const tone =
                       STATUS_TONES[ticket.status] ?? "border-line bg-canvas text-muted";
 
@@ -282,7 +294,7 @@ export default async function KitchenPage({
                               type="submit"
                               className="btn btn-primary min-h-[52px] w-full text-[14.5px] font-semibold"
                             >
-                              {primary.label}
+                              {actionLabel(primary.status, ws)}
                             </button>
                           </form>
                         )}
@@ -295,7 +307,7 @@ export default async function KitchenPage({
                               type="submit"
                               className="btn btn-ghost min-h-[46px] w-full text-[13px] font-medium"
                             >
-                              {secondary.label}
+                              {actionLabel(secondary.status, ws)}
                             </button>
                           </form>
                         )}
@@ -304,7 +316,7 @@ export default async function KitchenPage({
                           href={`/dashboard/orders/${ticket.id}`}
                           className="mt-2 block py-1 text-center text-[11px] font-medium text-muted hover:text-ink"
                         >
-                          Open full order
+                          Open full {ws.order}
                         </Link>
                       </article>
                     );
@@ -317,9 +329,9 @@ export default async function KitchenPage({
       </div>
 
       <p className="px-1 text-[11.5px] leading-relaxed text-muted">
-        Tickets are sorted oldest first and the board refreshes every 10 seconds. Buttons follow the
-        same status rules as the order page: a new ticket can start preparing, a preparing ticket can
-        be marked ready, and only a ready ticket can be handed over or sent out for delivery.
+        The board is sorted oldest first and refreshes every 10 seconds. Buttons follow the same
+        status rules as the full {ws.order} page: you cannot skip a step, and only finished work can
+        be closed.
       </p>
     </div>
   );

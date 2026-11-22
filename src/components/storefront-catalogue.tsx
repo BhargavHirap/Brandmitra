@@ -99,7 +99,7 @@ export function StorefrontCatalogue({
   if (uncategorised.length > 0) {
     sections.push({
       id: "more",
-      name: sections.length > 0 ? "More from " + storeName : "Menu",
+      name: sections.length > 0 ? "More from " + storeName : "More",
       slug: "more",
       items: uncategorised,
     });

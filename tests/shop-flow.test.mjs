@@ -274,7 +274,7 @@ test("a new shop signs up and uses the stock, staff and settings actions", { tim
     const catalogueText = catalogue.html.replace(/<!--[\s\S]*?-->/g, "");
     assert.match(
       catalogueText,
-      /of Unlimited products used/,
+      /of Unlimited menu items used/,
       "the Free plan should show an unlimited product allowance",
     );
 
@@ -400,8 +400,74 @@ test("a new shop signs up and uses the stock, staff and settings actions", { tim
     try {
       purge();
     } finally {
-      if (db) db.close();
+      if (db) {
+        db.close();
+        db = null; // let the next test reopen the same file
+      }
       await server.stop();
     }
+  }
+});
+
+test("a salon is shown salon words, not a restaurant menu", { timeout: 240_000 }, async () => {
+  const server = await ensureServer();
+  const owner = createApi(server.base);
+  const email = `e2e-salon-${stamp}@example.com`;
+  const shop = `E2E Salon ${stamp}`;
+  const text = (html) => html.replace(/<!--[\s\S]*?-->/g, "");
+
+  try {
+    purge();
+
+    let location = await owner.submit("/signup", {
+      fullName: "E2E Salon Owner",
+      email,
+      password: ownerPassword,
+    });
+    assert.equal(location, "/onboarding");
+
+    location = await owner.submit("/onboarding", {
+      name: shop,
+      industry: "salon",
+      city: "Pune",
+      tagline: "End-to-end salon",
+    });
+    assert.equal(location, "/dashboard?welcome=1");
+
+    const dashboard = await owner.get("/dashboard");
+    assert.equal(dashboard.res.status, 200);
+    const page = text(dashboard.html);
+
+    // The sidebar and the page copy use this business's own vocabulary.
+    for (const label of ["Services", "Service groups", "Appointments", "Appointment board", "Clients"]) {
+      assert.ok(page.includes(label), `a salon dashboard should say "${label}"`);
+    }
+    assert.ok(
+      !page.includes("Kitchen display"),
+      "a salon must not be shown a kitchen display",
+    );
+
+    // The seeded categories come from the salon type, not the cafe list.
+    const business = row(
+      "SELECT id FROM businesses WHERE name = ?",
+      shop,
+    );
+    const seeded = database()
+      .prepare("SELECT name FROM product_categories WHERE business_id = ? ORDER BY sort_order")
+      .all(business.id)
+      .map((entry) => entry.name);
+    assert.deepEqual(seeded, ["Haircuts", "Colour", "Styling", "Bridal", "Packages"]);
+
+    // The app board is titled for appointments and offers no delivery step.
+    const board = await owner.get("/dashboard/kitchen");
+    assert.equal(board.res.status, 200);
+    const boardPage = text(board.html);
+    assert.ok(boardPage.includes("Appointment board"), "the board should be an appointment board");
+    assert.ok(!boardPage.includes("Out for delivery"), "a salon board has no delivery step");
+
+    const products = await owner.get("/dashboard/products");
+    assert.ok(text(products.html).includes("Services"), "the catalogue should be called Services");
+  } finally {
+    purge();
   }
 });

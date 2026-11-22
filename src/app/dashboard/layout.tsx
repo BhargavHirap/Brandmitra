@@ -4,6 +4,7 @@ import { BrandLink, LogoMark } from "@/components/brand";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { requireBusiness } from "@/lib/business";
 import { initials } from "@/lib/format";
+import { industryLabel } from "@/lib/industries";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +27,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </span>
             <div className="min-w-0">
               <p className="truncate text-[12.5px] font-semibold leading-tight">{business.name}</p>
-              <p className="truncate text-[10.5px] capitalize text-muted">{business.industry}</p>
+              <p className="truncate text-[10.5px] text-muted">
+                {industryLabel(business.industry)}
+              </p>
             </div>
           </div>
           <div className="mt-5 flex-1 overflow-y-auto">
-            <DashboardNav planId={planId} variant="desktop" />
+            <DashboardNav planId={planId} industry={business.industry} variant="desktop" />
           </div>
         </aside>
 
@@ -83,7 +86,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </header>
 
           <div className="px-4 pb-20 pt-4 sm:px-6 sm:pt-5">
-            <DashboardNav planId={planId} variant="mobile" />
+            <DashboardNav planId={planId} industry={business.industry} variant="mobile" />
             <div className="mt-4 sm:mt-6">{children}</div>
           </div>
         </div>
