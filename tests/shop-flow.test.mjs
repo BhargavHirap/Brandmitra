@@ -449,7 +449,7 @@ test("a salon is shown salon words, not a restaurant menu", { timeout: 240_000 }
 
     // The seeded categories come from the salon type, not the cafe list.
     const business = row(
-      "SELECT id FROM businesses WHERE name = ?",
+      "SELECT id, slug FROM businesses WHERE name = ?",
       shop,
     );
     const seeded = database()
@@ -467,6 +467,23 @@ test("a salon is shown salon words, not a restaurant menu", { timeout: 240_000 }
 
     const products = await owner.get("/dashboard/products");
     assert.ok(text(products.html).includes("Services"), "the catalogue should be called Services");
+
+    // The public storefront speaks the salon's language too, not a restaurant menu.
+    const storefront = await fetch(`${server.base}/b/${business.slug}`);
+    assert.equal(storefront.status, 200, "the salon storefront should open");
+    const storefrontPage = text(await storefront.text());
+    assert.ok(
+      storefrontPage.includes("Services coming soon"),
+      "an empty salon storefront should promise services, not a catalogue",
+    );
+    assert.ok(storefrontPage.includes("Browse services"), "the hero button should offer services");
+    assert.ok(
+      !storefrontPage.includes("Catalogue"),
+      "a salon storefront must not be called a catalogue",
+    );
+
+    const cartPage = text(await (await fetch(`${server.base}/b/${business.slug}/cart`)).text());
+    assert.ok(cartPage.includes("Your booking"), "the salon cart should be a booking");
   } finally {
     purge();
   }

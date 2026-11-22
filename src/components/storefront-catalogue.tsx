@@ -1,5 +1,6 @@
 import { addToCartAction } from "@/app/actions/cart";
 import { formatMoney } from "@/lib/format";
+import type { Workspace } from "@/lib/workspace";
 
 /**
  * Public catalogue.
@@ -52,6 +53,7 @@ export function StorefrontCatalogue({
   storeName,
   phone,
   slug,
+  ws,
 }: {
   products: CatalogueProduct[];
   categories: CatalogueCategory[];
@@ -61,6 +63,7 @@ export function StorefrontCatalogue({
   storeName: string;
   phone: string | null;
   slug: string;
+  ws: Workspace;
 }) {
   const optionsByGroup = new Map<string, CatalogueOption[]>();
   for (const option of options) {
@@ -109,21 +112,23 @@ export function StorefrontCatalogue({
     <section id="catalogue" className="mx-auto max-w-6xl scroll-mt-16 px-5 py-12 sm:py-16">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h2 className="text-[19px] font-semibold tracking-[-0.02em]">Catalogue</h2>
+          <h2 className="text-[19px] font-semibold tracking-[-0.02em]">{ws.items}</h2>
           <p className="mt-1 text-[12.5px] text-muted">
             {products.length > 0
-              ? `${products.length} item${products.length === 1 ? "" : "s"} available`
-              : "Products are being added"}
+              ? `${products.length} ${products.length === 1 ? ws.item : ws.itemsLower} available`
+              : `${ws.items} are being added`}
           </p>
         </div>
       </div>
 
       {products.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-line px-5 py-14 text-center">
-          <p className="text-[13.5px] font-medium">Catalogue coming soon</p>
+          <p className="text-[13.5px] font-medium">{ws.items} coming soon</p>
           <p className="mx-auto mt-1 max-w-md text-[12.5px] leading-relaxed text-muted">
-            {storeName} has not published products yet. Call or message them to place an order in
-            the meantime.
+            {storeName} has not published {ws.itemsLower} yet. Call or message them to {ws.storefrontVerb}{
+              " "
+            }
+            in the meantime.
           </p>
           {phone && (
             <a href={`tel:${phone}`} className="btn btn-ghost mt-4">
@@ -135,7 +140,7 @@ export function StorefrontCatalogue({
         <>
           {sections.length > 1 && (
             <nav
-              aria-label="Catalogue categories"
+              aria-label={ws.categories}
               className="mt-5 flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]"
             >
               {sections.map((section) => (
@@ -156,7 +161,7 @@ export function StorefrontCatalogue({
                 <div className="flex items-baseline justify-between gap-3">
                   <h3 className="text-[15px] font-semibold tracking-[-0.01em]">{section.name}</h3>
                   <span className="text-[11px] text-muted">
-                    {section.items.length} item{section.items.length === 1 ? "" : "s"}
+                    {section.items.length} {section.items.length === 1 ? ws.item : ws.itemsLower}
                   </span>
                 </div>
                 <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -278,7 +283,7 @@ export function StorefrontCatalogue({
                                 className="btn flex-1 px-3 py-1.5 text-[12px] text-white"
                                 style={{ backgroundColor: accent }}
                               >
-                                Add to cart
+                                {ws.addAction}
                               </button>
                             </div>
                           </form>

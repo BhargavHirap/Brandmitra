@@ -7,7 +7,7 @@ import { BrandLink } from "@/components/brand";
 import { loadCart } from "@/lib/cart";
 import { getDb } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
-import { workspaceFor } from "@/lib/workspace";
+import { sentenceStart, workspaceFor } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Your cart" };
@@ -21,7 +21,7 @@ export const metadata: Metadata = { title: "Your cart" };
  */
 
 const ERROR_TEXT: Record<string, string> = {
-  empty: "Your cart is empty — add something from the catalogue first.",
+  empty: "Your cart is empty — add something first.",
   unavailable: "Some items are no longer available. Remove them and try again.",
   name: "Please enter the name the order should be prepared for.",
   phone: "Please enter a valid phone number with at least 10 digits.",
@@ -91,7 +91,7 @@ export default async function CartPage({
         <div className="flex items-baseline justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Step 1 of 2</p>
-            <h1 className="mt-1 text-[24px] font-semibold tracking-[-0.02em]">Your cart</h1>
+            <h1 className="mt-1 text-[24px] font-semibold tracking-[-0.02em]">{ws.cartTitle}</h1>
           </div>
           {lines.length > 0 && (
             <form action={clearCartAction}>
@@ -105,8 +105,8 @@ export default async function CartPage({
 
         {added === "1" && (
           <div className="mt-4 rounded-[10px] border border-success/20 bg-success/5 px-3.5 py-2.5 text-[12.5px] text-success">
-            Added to your cart.
-          </div>
+                          Added to your selection.
+            </div>
         )}
         {errorMessage && (
           <div className="mt-4 rounded-[10px] border border-warning/25 bg-warning/5 px-3.5 py-2.5 text-[12.5px] text-warning">
@@ -118,7 +118,7 @@ export default async function CartPage({
           <div className="mt-6 rounded-xl border border-line bg-white px-5 py-12 text-center">
             <p className="text-[13.5px] font-medium">This storefront is offline</p>
             <p className="mx-auto mt-1 max-w-md text-[12.5px] text-muted">
-              {store.name} is not accepting orders right now.
+              {store.name} is not accepting {ws.orders.toLowerCase()} right now.
             </p>
           </div>
         ) : lines.length === 0 ? (
@@ -132,7 +132,7 @@ export default async function CartPage({
               className="btn mt-4 text-white"
               style={{ backgroundColor: accent }}
             >
-              Browse the {ws.storefrontList.toLowerCase()}
+              {ws.storefrontBrowseLabel}
             </Link>
           </div>
         ) : (
@@ -198,10 +198,10 @@ export default async function CartPage({
 
             <div className="space-y-3">
               <section className="card p-4">
-                <h2 className="text-[13px] font-semibold">Order summary</h2>
+                <h2 className="text-[13px] font-semibold">{sentenceStart(ws.order)} summary</h2>
                 <dl className="mt-3 space-y-1.5 text-[12.5px]">
                   <div className="flex justify-between gap-3 text-muted">
-                    <dt>Items</dt>
+                    <dt>{sentenceStart(ws.itemsLower)}</dt>
                     <dd className="tabular-nums">{cart?.itemCount ?? 0}</dd>
                   </div>
                   <div className="flex justify-between gap-3 text-muted">
@@ -214,8 +214,7 @@ export default async function CartPage({
                   </div>
                 </dl>
                 <p className="mt-2 text-[10.5px] leading-relaxed text-muted">
-                  Delivery or pickup is arranged with the business directly. Online payment is not
-                  enabled yet — you pay on delivery or at the counter.
+                  {ws.fulfilmentNote}
                 </p>
               </section>
 
@@ -224,7 +223,7 @@ export default async function CartPage({
 
                 {cart?.hasUnavailable ? (
                   <p className="mt-2 rounded-md border border-warning/20 bg-warning/5 px-2.5 py-2 text-[11.5px] leading-relaxed text-warning">
-                    Remove the unavailable items above before placing the order.
+                    Remove the unavailable items above before placing the {ws.order}.
                   </p>
                 ) : (
                   <form action={placeOrderAction} className="mt-3 space-y-3">
@@ -259,7 +258,7 @@ export default async function CartPage({
                         placeholder="+91 98765 43210"
                       />
                       <p className="mt-1 text-[10.5px] text-muted">
-                        The business uses this to contact you about the order.
+                        The business uses this to contact you about the {ws.order}.
                       </p>
                     </div>
                     <div>
@@ -271,9 +270,9 @@ export default async function CartPage({
                         name="note"
                         rows={2}
                         maxLength={400}
-                        className="field resize-y"
-                        placeholder="Ring the bell, no sugar, etc."
-                      />
+                                                    className="field resize-y"
+                            placeholder={ws.notePlaceholder}
+                          />
                     </div>
 
                     <fieldset>
@@ -288,8 +287,8 @@ export default async function CartPage({
                             className="mt-0.5 h-3.5 w-3.5 accent-[#2f6bff]"
                           />
                           <span>
-                            <span className="font-medium">Cash on delivery</span>
-                            <span className="block text-[10.5px] text-muted">Pay when it arrives.</span>
+                            <span className="font-medium">{ws.payLaterLabel}</span>
+                            <span className="block text-[10.5px] text-muted">{ws.payLaterHint}</span>
                           </span>
                         </label>
                         <label className="flex items-start gap-2 text-[12px]">
@@ -300,8 +299,8 @@ export default async function CartPage({
                             className="mt-0.5 h-3.5 w-3.5 accent-[#2f6bff]"
                           />
                           <span>
-                            <span className="font-medium">Pay at the store</span>
-                            <span className="block text-[10.5px] text-muted">For pickup orders.</span>
+                            <span className="font-medium">{ws.payAtStoreLabel}</span>
+                            <span className="block text-[10.5px] text-muted">{ws.payAtStoreHint}</span>
                           </span>
                         </label>
                       </div>
@@ -312,10 +311,10 @@ export default async function CartPage({
                       className="btn w-full text-white"
                       style={{ backgroundColor: accent }}
                     >
-                      Place order · {formatMoney(cart?.subtotal ?? 0)}
+                      {ws.checkoutAction} · {formatMoney(cart?.subtotal ?? 0)}
                     </button>
                     <p className="text-center text-[10.5px] leading-relaxed text-muted">
-                      You will get an order number and a receipt link on the next screen.
+                      You will get a receipt number and a private link on the next screen.
                     </p>
                   </form>
                 )}

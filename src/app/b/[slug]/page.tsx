@@ -11,6 +11,7 @@ import {
 } from "@/components/storefront-catalogue";
 import { loadCart } from "@/lib/cart";
 import { getDb } from "@/lib/db";
+import { sentenceStart, workspaceFor } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -63,9 +64,13 @@ export async function generateMetadata({
   const { slug } = await params;
   const store = await loadStorefront(slug);
   if (!store) return { title: "Storefront not found" };
+  const ws = workspaceFor(store.industry);
   return {
     title: `${store.name}${store.tagline ? ` — ${store.tagline}` : ""}`,
-    description: store.description || store.tagline || `Order online from ${store.name}.`,
+    description:
+      store.description ||
+      store.tagline ||
+      `${sentenceStart(ws.storefrontVerb)} online from ${store.name}.`,
   };
 }
 
@@ -98,6 +103,7 @@ export default async function StorefrontPage({
   if (!store) notFound();
 
   const accent = /^#[0-9a-fA-F]{6}$/.test(store.brand_color ?? "") ? store.brand_color! : "#2F6BFF";
+  const ws = workspaceFor(store.industry);
   const db = await getDb();
   const [products, categories, groups, options] = await Promise.all([
     db.all<CatalogueProduct>(
@@ -161,7 +167,8 @@ export default async function StorefrontPage({
                 href={`/b/${store.slug}/cart`}
                 className="rounded-lg border border-line bg-white px-2.5 py-1.5 font-medium text-ink"
               >
-                Cart{cart && cart.itemCount > 0 ? ` (${cart.itemCount})` : ""}
+                {ws.cartLabel}
+                {cart && cart.itemCount > 0 ? ` (${cart.itemCount})` : ""}
               </Link>
             )}
             {whatsappDigits && !suspended && (
@@ -197,8 +204,8 @@ export default async function StorefrontPage({
             This storefront is temporarily offline
           </h1>
           <p className="mx-auto mt-2 max-w-md text-[13.5px] leading-relaxed text-muted">
-            {store.name} is not accepting orders right now. Please contact the business directly if
-            you need to reach them.
+            {store.name} is not accepting {ws.orders.toLowerCase()} right now. Please contact the
+            business directly if you need to reach them.
           </p>
         </main>
       ) : (
@@ -221,7 +228,7 @@ export default async function StorefrontPage({
               </h1>
               <p className="mt-4 max-w-xl text-[14.5px] leading-relaxed text-muted">
                 {store.description ||
-                  `${store.name} is now on Vantra. Browse the catalogue and order directly.`}
+                  `${store.name} is now on Vantra. Browse the ${ws.storefrontList.toLowerCase()} and ${ws.storefrontVerb} directly.`}
               </p>
               <div className="mt-7 flex flex-wrap items-center gap-2.5">
                 <a
@@ -229,7 +236,7 @@ export default async function StorefrontPage({
                   className="btn text-white"
                   style={{ backgroundColor: accent }}
                 >
-                  Browse catalogue
+                  {ws.storefrontBrowseLabel}
                 </a>
                 {whatsappDigits && (
                   <a
@@ -254,6 +261,7 @@ export default async function StorefrontPage({
             storeName={store.name}
             phone={store.phone}
             slug={store.slug}
+            ws={ws}
           />
 
           <section className="border-t border-line bg-canvas/60">

@@ -60,6 +60,34 @@ export type Workspace = {
   storefrontList: string;
   /** "Back to ..." link on the public cart. */
   storefrontBack: string;
+  /** What a visitor does here: order, book, enrol. */
+  storefrontVerb: string;
+  /** Hero button that jumps to the list: "Browse the menu". */
+  storefrontBrowseLabel: string;
+  /** Button on a catalogue card that adds the thing to the cart. */
+  addAction: string;
+  /** Short header link on the storefront: "Cart", "Bookings". */
+  cartLabel: string;
+  /** Heading on the public cart: "Your cart", "Your booking". */
+  cartTitle: string;
+  /** Button that finishes checkout. */
+  checkoutAction: string;
+  /** Banner heading on the receipt: "Order placed". */
+  receiptTitle: string;
+  /** Receipt status for a fresh, untouched ticket. */
+  statusReceived: string;
+  /** Receipt status for a finished ticket. */
+  statusDone: string;
+  /** Pay-later option label and its one-line hint. */
+  payLaterLabel: string;
+  payLaterHint: string;
+  /** Pay-in-person option label and its one-line hint. */
+  payAtStoreLabel: string;
+  payAtStoreHint: string;
+  /** How the customer gets the thing, printed on the cart summary. */
+  fulfilmentNote: string;
+  /** Example text in the optional note box. */
+  notePlaceholder: string;
 };
 
 /* ── The six verticals ────────────────────────────────────────────────────── */
@@ -93,6 +121,22 @@ const FOOD: Workspace = {
   importLabel: "Import menu photo",
   storefrontList: "Menu",
   storefrontBack: "Back to menu",
+  storefrontVerb: "order",
+  storefrontBrowseLabel: "Browse the menu",
+  addAction: "Add to cart",
+  cartLabel: "Cart",
+  cartTitle: "Your cart",
+  checkoutAction: "Place order",
+  receiptTitle: "Order placed",
+  statusReceived: "Received",
+  statusDone: "Delivered",
+  payLaterLabel: "Cash on delivery",
+  payLaterHint: "Pay when it arrives.",
+  payAtStoreLabel: "Pay at the counter",
+  payAtStoreHint: "For pickup orders.",
+  fulfilmentNote:
+    "Delivery or pickup is arranged with the business directly. Online payment is not enabled yet — you pay when you receive it.",
+  notePlaceholder: "Less spicy, no onion, ring the bell…",
 };
 
 const WELLNESS: Workspace = {
@@ -124,6 +168,22 @@ const WELLNESS: Workspace = {
   importLabel: null,
   storefrontList: "Services",
   storefrontBack: "Back to services",
+  storefrontVerb: "book",
+  storefrontBrowseLabel: "Browse services",
+  addAction: "Book",
+  cartLabel: "Bookings",
+  cartTitle: "Your booking",
+  checkoutAction: "Confirm booking",
+  receiptTitle: "Booking confirmed",
+  statusReceived: "Booked",
+  statusDone: "Completed",
+  payLaterLabel: "Cash",
+  payLaterHint: "Pay at the counter on the day.",
+  payAtStoreLabel: "Pay at the counter",
+  payAtStoreHint: "Settle when you arrive.",
+  fulfilmentNote:
+    "Your slot is arranged with the business directly. Online payment is not enabled yet — you pay at the counter.",
+  notePlaceholder: "Preferred time, who you would like, allergies…",
 };
 
 const RETAIL: Workspace = {
@@ -155,6 +215,22 @@ const RETAIL: Workspace = {
   importLabel: null,
   storefrontList: "Shop",
   storefrontBack: "Back to the shop",
+  storefrontVerb: "order",
+  storefrontBrowseLabel: "Browse the shop",
+  addAction: "Add to cart",
+  cartLabel: "Cart",
+  cartTitle: "Your cart",
+  checkoutAction: "Place order",
+  receiptTitle: "Order placed",
+  statusReceived: "Received",
+  statusDone: "Delivered",
+  payLaterLabel: "Cash on delivery",
+  payLaterHint: "Pay when it arrives.",
+  payAtStoreLabel: "Pay at the store",
+  payAtStoreHint: "For pickup orders.",
+  fulfilmentNote:
+    "Delivery or pickup is arranged with the business directly. Online payment is not enabled yet — you pay when you receive it.",
+  notePlaceholder: "Size, colour, gift wrap, delivery instructions…",
 };
 
 const SERVICES: Workspace = {
@@ -186,6 +262,22 @@ const SERVICES: Workspace = {
   importLabel: null,
   storefrontList: "Services",
   storefrontBack: "Back to services",
+  storefrontVerb: "book",
+  storefrontBrowseLabel: "Browse services",
+  addAction: "Book",
+  cartLabel: "Bookings",
+  cartTitle: "Your booking",
+  checkoutAction: "Confirm booking",
+  receiptTitle: "Booking confirmed",
+  statusReceived: "Booked",
+  statusDone: "Completed",
+  payLaterLabel: "Cash",
+  payLaterHint: "Pay after the work is done.",
+  payAtStoreLabel: "Pay at the counter",
+  payAtStoreHint: "Settle when you drop by.",
+  fulfilmentNote:
+    "Timing and pickup are arranged with the business directly. Online payment is not enabled yet — you pay after the work.",
+  notePlaceholder: "Describe the problem, preferred time…",
 };
 
 const LEARNING: Workspace = {
@@ -217,6 +309,22 @@ const LEARNING: Workspace = {
   importLabel: null,
   storefrontList: "Courses",
   storefrontBack: "Back to courses",
+  storefrontVerb: "enrol",
+  storefrontBrowseLabel: "Browse courses",
+  addAction: "Enrol",
+  cartLabel: "Enrolments",
+  cartTitle: "Your enrolment",
+  checkoutAction: "Confirm enrolment",
+  receiptTitle: "Enrolment confirmed",
+  statusReceived: "Enrolled",
+  statusDone: "Completed",
+  payLaterLabel: "Cash",
+  payLaterHint: "Pay the fee at the centre.",
+  payAtStoreLabel: "Pay at the centre",
+  payAtStoreHint: "Settle the fee in person.",
+  fulfilmentNote:
+    "Batch timings are confirmed with the institute directly. Online payment is not enabled yet — the fee is paid at the centre.",
+  notePlaceholder: "Student name, preferred batch timing…",
 };
 
 const WHOLESALE: Workspace = {
@@ -248,6 +356,22 @@ const WHOLESALE: Workspace = {
   importLabel: null,
   storefrontList: "Catalogue",
   storefrontBack: "Back to the catalogue",
+  storefrontVerb: "order",
+  storefrontBrowseLabel: "Browse the catalogue",
+  addAction: "Add to cart",
+  cartLabel: "Cart",
+  cartTitle: "Your purchase order",
+  checkoutAction: "Place purchase order",
+  receiptTitle: "Purchase order received",
+  statusReceived: "Received",
+  statusDone: "Delivered",
+  payLaterLabel: "Cash on delivery",
+  payLaterHint: "Pay when the vehicle arrives.",
+  payAtStoreLabel: "Pay at the godown",
+  payAtStoreHint: "For self-pickup orders.",
+  fulfilmentNote:
+    "Dispatch and transport are arranged with the business directly. Online payment is not enabled yet — you settle on delivery.",
+  notePlaceholder: "Delivery instructions, GST number, vehicle details…",
 };
 
 /** Neutral wording for a business type we do not recognise. */
@@ -281,6 +405,22 @@ const OTHER: Workspace = {
   importLabel: null,
   storefrontList: "Catalogue",
   storefrontBack: "Back to the catalogue",
+  storefrontVerb: "order",
+  storefrontBrowseLabel: "Browse the catalogue",
+  addAction: "Add to cart",
+  cartLabel: "Cart",
+  cartTitle: "Your cart",
+  checkoutAction: "Place order",
+  receiptTitle: "Order received",
+  statusReceived: "Received",
+  statusDone: "Completed",
+  payLaterLabel: "Cash on delivery",
+  payLaterHint: "Pay when you receive it.",
+  payAtStoreLabel: "Pay in person",
+  payAtStoreHint: "For pickup.",
+  fulfilmentNote:
+    "Delivery or pickup is arranged with the business directly. Online payment is not enabled yet — you pay when you receive it.",
+  notePlaceholder: "Anything the business should know…",
 };
 
 const GROUP_WORKSPACE: Record<string, Workspace> = {
@@ -323,6 +463,15 @@ const OVERRIDES: Record<string, Partial<Workspace>> = {
     handoverAction: "Sent out",
     storefrontList: "Plans",
     storefrontBack: "Back to the plans",
+    storefrontVerb: "subscribe",
+    storefrontBrowseLabel: "Browse the plans",
+    addAction: "Choose plan",
+    cartLabel: "Plans",
+    cartTitle: "Your plan",
+    checkoutAction: "Start the plan",
+    receiptTitle: "Plan started",
+    statusReceived: "Subscribed",
+    notePlaceholder: "Delivery address, meal preference, skip days…",
   },
   caterer: {
     order: "event booking",
@@ -416,6 +565,15 @@ const OVERRIDES: Record<string, Partial<Workspace>> = {
     handoverAction: "Done",
     storefrontList: "Plans",
     storefrontBack: "Back to the plans",
+    storefrontVerb: "join",
+    storefrontBrowseLabel: "Browse the plans",
+    addAction: "Join",
+    cartLabel: "Sign-ups",
+    cartTitle: "Your sign-up",
+    checkoutAction: "Confirm sign-up",
+    receiptTitle: "Sign-up received",
+    statusReceived: "Signed up",
+    notePlaceholder: "Preferred batch, trainer, joining date…",
   },
   yoga: {
     item: "class pack",
@@ -619,6 +777,15 @@ const OVERRIDES: Record<string, Partial<Workspace>> = {
     handoverAction: "Closed",
     storefrontList: "Programmes",
     storefrontBack: "Back to the programmes",
+    storefrontVerb: "apply",
+    storefrontBrowseLabel: "Browse the programmes",
+    addAction: "Apply",
+    cartLabel: "Admissions",
+    cartTitle: "Your application",
+    checkoutAction: "Submit application",
+    receiptTitle: "Application received",
+    statusReceived: "Applied",
+    notePlaceholder: "Child's name, age, preferred timing…",
   },
   event: {
     item: "ticket",
@@ -642,6 +809,14 @@ const OVERRIDES: Record<string, Partial<Workspace>> = {
     handoverAction: "Closed",
     storefrontList: "Passes",
     storefrontBack: "Back to the passes",
+    addAction: "Book",
+    cartLabel: "Bookings",
+    cartTitle: "Your booking",
+    checkoutAction: "Confirm booking",
+    receiptTitle: "Booking confirmed",
+    statusReceived: "Booked",
+    statusDone: "Completed",
+    notePlaceholder: "Number of guests, table preference…",
   },
 
   /* Wholesale */
@@ -665,4 +840,35 @@ export function workspaceFor(industry: string): Workspace {
   const overrides = OVERRIDES[industry];
   if (!overrides) return base;
   return { ...base, ...overrides };
+}
+
+/**
+ * The status a customer sees on their own receipt. The stored status values
+ * never change; only the words do, because a salon's ticket is "In service",
+ * not "Preparing".
+ */
+export function storefrontStatus(status: string, ws: Workspace): string {
+  switch (status) {
+    case "new":
+      return ws.statusReceived;
+    case "accepted":
+      return "Confirmed";
+    case "preparing":
+      return ws.columnLabels[1];
+    case "ready":
+      return ws.columnLabels[2];
+    case "out_for_delivery":
+      return "Out for delivery";
+    case "delivered":
+      return ws.statusDone;
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return status;
+  }
+}
+
+/** "order" -> "Order", for the start of a sentence. */
+export function sentenceStart(word: string): string {
+  return word.charAt(0).toUpperCase() + word.slice(1);
 }
