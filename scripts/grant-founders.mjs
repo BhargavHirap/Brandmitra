@@ -57,6 +57,7 @@ const db = new DatabaseSync(DB_FILE);
 db.exec("PRAGMA foreign_keys = ON;");
 
 const sql = [];
+const granted = [];
 const now = new Date().toISOString();
 
 console.log(`Granting founder access to ${emails.length} account(s).\n`);
@@ -70,7 +71,7 @@ for (const email of emails) {
   }
 
   db.prepare("UPDATE users SET is_platform_admin = 1 WHERE id = ?").run(user.id);
-  sql.push(`UPDATE users SET is_platform_admin = 1 WHERE lower(email) = '${email}';`);
+  granted.push(email);
 
   const memberships = db
     .prepare("SELECT business_id, role FROM business_members WHERE user_id = ?")
@@ -102,18 +103,6 @@ for (const email of emails) {
       ).run(crypto.randomUUID(), membership.business_id, now);
     }
 
-    sql.push(
-      `UPDATE subscriptions SET plan_id = 'enterprise', status = 'active' WHERE business_id = (SELECT id FROM businesses WHERE name = '${String(
-        business?.name ?? "",
-      ).replaceAll("'", "''")}');`,
-    );
-    sql.push(
-      `INSERT INTO subscriptions (id, business_id, plan_id, status, created_at) SELECT 'founder-${membership.business_id.slice(
-        0,
-        8,
-      )}', id, 'enterprise', 'active', '${now}' FROM businesses WHERE id = '${membership.business_id}' AND NOT EXISTS (SELECT 1 FROM subscriptions WHERE business_id = '${membership.business_id}');`,
-    );
-
     console.log(
       `  ✓ ${email} — founder, owner-level on "${business?.name ?? membership.business_id}", plan set to Enterprise (all features, 25,000 AI credits a month).`,
     );
@@ -125,6 +114,21 @@ if (changed === 0) {
   console.log("\nNothing changed. Check the addresses and try again.");
   db.close();
   process.exit(1);
+}
+
+// The SQL is written to work on the *deployed* database, where business ids are
+// different. It therefore matches on the founder's membership, never on a
+// business name — two businesses can share a name, and picking by name would
+// upgrade the wrong one.
+const list = granted.map((email) => `'${email}'`).join(", ");
+if (list) {
+  sql.push(`UPDATE users SET is_platform_admin = 1 WHERE lower(email) IN (${list});`);
+  sql.push(
+    `UPDATE subscriptions SET plan_id = 'enterprise', status = 'active' WHERE business_id IN (SELECT m.business_id FROM business_members m JOIN users u ON u.id = m.user_id WHERE lower(u.email) IN (${list}));`,
+  );
+  sql.push(
+    `INSERT INTO subscriptions (id, business_id, plan_id, status, created_at) SELECT lower(hex(randomblob(16))), m.business_id, 'enterprise', 'active', '${now}' FROM business_members m JOIN users u ON u.id = m.user_id WHERE lower(u.email) IN (${list}) AND NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.business_id = m.business_id) GROUP BY m.business_id;`,
+  );
 }
 
 console.log(
