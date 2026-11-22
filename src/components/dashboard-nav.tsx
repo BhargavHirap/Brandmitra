@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { workspaceFor } from "@/lib/workspace";
+import { deskFor } from "@/lib/reception";
 
 type Item = { key: string; label: string; href: string; phase: number; ready?: boolean };
 
@@ -14,6 +15,7 @@ type Item = { key: string; label: string; href: string; phase: number; ready?: b
  */
 function sectionsFor(industry: string): { group: string; items: Item[] }[] {
   const w = workspaceFor(industry);
+  const desk = deskFor(industry);
   return [
     {
       group: "Workspace",
@@ -28,6 +30,7 @@ function sectionsFor(industry: string): { group: string; items: Item[] }[] {
         { key: "products", label: w.items, href: "/dashboard/products", phase: 2, ready: true },
         { key: "categories", label: w.categories, href: "/dashboard/categories", phase: 2, ready: true },
         { key: "orders", label: w.orders, href: "/dashboard/orders", phase: 3, ready: true },
+        { key: "receptionist", label: desk.title, href: "/dashboard/receptionist", phase: 3, ready: true },
         { key: "board", label: w.board, href: "/dashboard/kitchen", phase: 4, ready: true },
         { key: "customers", label: w.customers, href: "/dashboard/customers", phase: 3, ready: true },
         { key: "inventory", label: "Inventory", href: "/dashboard/inventory", phase: 8, ready: true },

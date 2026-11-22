@@ -351,6 +351,50 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_audit_business ON audit_logs(business_id, created_at);
+
+CREATE TABLE IF NOT EXISTS desk_settings (
+  business_id TEXT PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE,
+  greeting TEXT NOT NULL DEFAULT '',
+  languages TEXT NOT NULL DEFAULT 'Hindi, Hinglish, English',
+  opens_at TEXT NOT NULL DEFAULT '10:00',
+  closes_at TEXT NOT NULL DEFAULT '20:00',
+  closed_days TEXT NOT NULL DEFAULT '0',
+  slot_minutes INTEGER NOT NULL DEFAULT 30,
+  escalation_phone TEXT NOT NULL DEFAULT '',
+  followup_hours INTEGER NOT NULL DEFAULT 2,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS desk_calls (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  customer_name TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  outcome TEXT NOT NULL DEFAULT 'missed',
+  language TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  appointment_id TEXT,
+  value_inr INTEGER NOT NULL DEFAULT 0,
+  follow_up_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_desk_calls_business ON desk_calls(business_id, created_at);
+
+CREATE TABLE IF NOT EXISTS desk_appointments (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  call_id TEXT,
+  customer_name TEXT NOT NULL,
+  phone TEXT NOT NULL DEFAULT '',
+  service TEXT NOT NULL DEFAULT '',
+  starts_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'booked',
+  source TEXT NOT NULL DEFAULT 'phone',
+  notes TEXT NOT NULL DEFAULT '',
+  value_inr INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_desk_appts_business ON desk_appointments(business_id, starts_at);
 `;
 
 export const SEED_SQL = `

@@ -488,3 +488,199 @@ test("a salon is shown salon words, not a restaurant menu", { timeout: 240_000 }
     purge();
   }
 });
+
+test("a clinic front desk books a slot, chases a callback and closes it", { timeout: 240_000 }, async () => {
+  const server = await ensureServer();
+  const owner = createApi(server.base);
+  const email = `e2e-clinic-${stamp}@example.com`;
+  const shop = `E2E Clinic ${stamp}`;
+  const text = (html) => html.replace(/<!--[\s\S]*?-->/g, "");
+
+  // Tomorrow at 09:30 IST, inside the hours this test sets below.
+  const todayKey = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
+  const tomorrowKey = new Date(Date.parse(`${todayKey}T00:00:00Z`) + 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const startsAt = `${tomorrowKey}T09:30:00+05:30`;
+
+  try {
+    purge();
+
+    let location = await owner.submit("/signup", {
+      fullName: "E2E Clinic Owner",
+      email,
+      password: ownerPassword,
+    });
+    assert.equal(location, "/onboarding");
+
+    location = await owner.submit("/onboarding", {
+      name: shop,
+      industry: "clinic",
+      city: "Mumbai",
+      tagline: "End-to-end clinic",
+    });
+    assert.equal(location, "/dashboard?welcome=1");
+
+    const business = row("SELECT id, slug FROM businesses WHERE name = ?", shop);
+    assert.ok(business, "onboarding should create the clinic");
+
+    /* ---- The desk speaks this business type's language ------------- */
+    let desk = await owner.get("/dashboard/receptionist");
+    assert.equal(desk.res.status, 200, "the front desk should open");
+    let page = text(desk.html);
+    assert.ok(page.includes("Front desk"), "the screen is called Front desk");
+    assert.ok(page.includes("Patients"), "a clinic reads Patients, not Customers");
+    assert.ok(page.includes("Book a slot"), "there is a booking form");
+    assert.ok(
+      page.includes("Not connected"),
+      "the phone line must say it is not connected instead of pretending to answer",
+    );
+
+    /* ---- Hours and slots are the owner's, not a default ------------ */
+    location = await owner.submit("/dashboard/receptionist", {
+      greeting: "Namaste, Sharma Clinic. Kaise madad kar sakte hain?",
+      languages: "Hindi, Hinglish, English",
+      opensAt: "09:00",
+      closesAt: "11:00",
+      slotMinutes: "30",
+      followupHours: "2",
+      escalationPhone: "+91 98765 43210",
+    });
+    assert.equal(location, "/dashboard/receptionist?saved=settings");
+
+    const saved = row("SELECT opens_at, closes_at, slot_minutes FROM desk_settings WHERE business_id = ?", business.id);
+    assert.equal(saved.opens_at, "09:00");
+    assert.equal(saved.closes_at, "11:00");
+    assert.equal(saved.slot_minutes, 30);
+
+    /* ---- A booking writes both the slot and the call --------------- */
+    location = await owner.submit("/dashboard/receptionist", {
+      startsAt,
+      customerName: "Sunita Rao",
+      phone: "+91 98765 43210",
+      service: "Consultation",
+      value: "1500",
+      notes: "Wants the morning slot",
+    });
+    assert.equal(location, "/dashboard/receptionist?saved=booked", `booking failed: ${location}`);
+
+    const appointment = row(
+      "SELECT id, status, starts_at, value_inr FROM desk_appointments WHERE business_id = ?",
+      business.id,
+    );
+    assert.ok(appointment, "the booking should be stored");
+    assert.equal(appointment.starts_at, startsAt);
+    assert.equal(appointment.status, "booked");
+    assert.equal(appointment.value_inr, 1500);
+    assert.equal(
+      row("SELECT outcome FROM desk_calls WHERE appointment_id = ?", appointment.id).outcome,
+      "booked",
+      "a booking also lands in the call log",
+    );
+
+    // The same slot cannot be sold twice.
+    location = await owner.submit("/dashboard/receptionist", {
+      startsAt,
+      customerName: "Someone Else",
+      phone: "+91 90000 11111",
+      service: "Consultation",
+      value: "0",
+      notes: "",
+    });
+    assert.equal(location, "/dashboard/receptionist?error=slotTaken");
+    assert.equal(
+      database().prepare("SELECT COUNT(*) AS n FROM desk_appointments WHERE business_id = ?").get(business.id).n,
+      1,
+      "the refused booking must not be stored",
+    );
+
+    // A time outside the owner's hours is refused, not stored.
+    location = await owner.submit("/dashboard/receptionist", {
+      startsAt: `${tomorrowKey}T15:00:00+05:30`,
+      customerName: "Late Caller",
+      phone: "+91 90000 22222",
+      service: "Consultation",
+      value: "0",
+      notes: "",
+    });
+    assert.equal(location, "/dashboard/receptionist?error=slot");
+
+    /* ---- The confirmation is a real wa.me link with the message ---- */
+    desk = await owner.get("/dashboard/receptionist");
+    page = text(desk.html);
+    assert.ok(page.includes("Sunita"), "the booking appears on the desk");
+    assert.ok(page.includes("WhatsApp confirmation"), "the confirmation link is offered");
+    assert.ok(page.includes("wa.me/919876543210"), "the link is built from the saved number");
+    assert.ok(
+      page.includes("confirm ho gaya hai"),
+      "the Hinglish confirmation is written for them",
+    );
+
+    /* ---- "Call later" starts a callback with a booking link -------- */
+    location = await owner.submit("/dashboard/receptionist", {
+      customerName: "Rakesh",
+      phone: "+91 90000 33333",
+      outcome: "followup",
+      language: "hinglish",
+      notes: "Asked about evening slots",
+    });
+    assert.equal(location, "/dashboard/receptionist?saved=call");
+
+    const callback = row(
+      "SELECT id, outcome, follow_up_at FROM desk_calls WHERE customer_name = 'Rakesh' AND business_id = ?",
+      business.id,
+    );
+    assert.equal(callback.outcome, "followup");
+    assert.ok(callback.follow_up_at, "a follow-up gets a due time two hours out");
+
+    desk = await owner.get("/dashboard/receptionist");
+    page = text(desk.html);
+    assert.ok(page.includes("Call-backs due"), "the callback queue is on the desk");
+    assert.ok(page.includes("Send booking link"), "the callback carries a booking link");
+
+    location = await owner.submit("/dashboard/receptionist", { id: callback.id }, ["status"]);
+    assert.equal(location, "/dashboard/receptionist?saved=followup");
+    assert.equal(
+      row("SELECT follow_up_at FROM desk_calls WHERE id = ?", callback.id).follow_up_at,
+      null,
+      "marking it done clears the due time",
+    );
+
+    /* ---- Closing the slot ------------------------------------------ */
+    location = await owner.submit(
+      "/dashboard/receptionist",
+      { id: appointment.id, status: "completed" },
+      ["startsAt"],
+    );
+    assert.equal(location, "/dashboard/receptionist?saved=appointment");
+    assert.equal(
+      row("SELECT status FROM desk_appointments WHERE id = ?", appointment.id).status,
+      "completed",
+    );
+
+    /* ---- Every business type gets the desk, in its own words ------- */
+    for (const [industry, word] of [
+      ["salon", "Clients"],
+      ["gym", "Members"],
+      ["wholesaler", "Buyers"],
+      ["restaurant", "Guests"],
+      ["coaching", "Students"],
+      ["other", "Front desk"],
+    ]) {
+      database().prepare("UPDATE businesses SET industry = ? WHERE id = ?").run(industry, business.id);
+      const perType = await owner.get("/dashboard/receptionist");
+      assert.equal(perType.res.status, 200, `the desk should open for ${industry}`);
+      assert.ok(
+        text(perType.html).includes(word),
+        `a ${industry} desk should show "${word}"`,
+      );
+    }
+  } finally {
+    purge();
+    if (db) {
+      db.close();
+      db = null;
+    }
+    await server.stop();
+  }
+});
