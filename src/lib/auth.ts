@@ -80,6 +80,24 @@ function randomToken(): string {
   return toBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+/*
+ * FOUNDER EMAILS — the co-founders' addresses, comma separated, in one place
+ * (`FOUNDER_EMAILS` in the environment). An account that signs up with one of
+ * these addresses is marked as a founder automatically, so there is no SQL step
+ * and no manual flag to forget. The list lives on the server and is never sent
+ * to the browser.
+ */
+export function founderEmails(): string[] {
+  return (process.env.FOUNDER_EMAILS ?? "")
+    .split(/[,\s]+/)
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => value.includes("@"));
+}
+
+export function isFounderEmail(email: string): boolean {
+  return founderEmails().includes(email.trim().toLowerCase());
+}
+
 export type SessionUser = {
   id: string;
   email: string;

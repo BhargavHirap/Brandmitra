@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BrandLink } from "@/components/brand";
+import { StorefrontBestSellers } from "@/components/storefront-best-sellers";
 import {
   StorefrontCatalogue,
   type CatalogueCategory,
@@ -133,6 +134,12 @@ export default async function StorefrontPage({
     ),
   ]);
 
+  const categoryNames = new Map(categories.map((category) => [category.id, category.name]));
+  const bestSellers = products.map((product) => ({
+    ...product,
+    category_name: product.category_id ? categoryNames.get(product.category_id) : undefined,
+  }));
+
   const social = safeSocial(store.social_links);
   const socialEntries = Object.entries(social).filter(([, url]) => Boolean(url));
   const whatsappDigits = (store.whatsapp ?? "").replace(/[^\d]/g, "");
@@ -253,6 +260,13 @@ export default async function StorefrontPage({
               </div>
             </div>
           </section>
+
+          <StorefrontBestSellers
+            products={bestSellers}
+            storeName={store.name}
+            accent={accent}
+            ws={ws}
+          />
 
           <StorefrontCatalogue
             products={products}

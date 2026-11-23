@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandLink } from "@/components/brand";
+import { BestSellerRail } from "@/components/landing/best-sellers";
 import { DishOrbitCarousel } from "@/components/landing/dish-orbit-carousel";
 import { Reveal } from "@/components/landing/reveal";
 import { FooterLinks, SocialLinks } from "@/components/landing/social-links";
@@ -11,11 +12,11 @@ export const metadata = {
 };
 
 /**
- * SHOWCASE — the same two carousels as the landing page, with room to look.
+ * SHOWCASE — the product's screens plus the rail a shop's own catalogue uses.
  *
  * It exists so a page can be sent to a shop owner on WhatsApp without the
- * landing page's signup ask in the way. Same neutral surface, same motion rules,
- * nothing extra: a line, two showcases, one way back.
+ * landing page's signup ask in the way. Same light surface, same motion rules,
+ * nothing extra: a line, the best-seller rail, two showcases, one way back.
  */
 
 const NEUTRAL = "#f6f7f9";
@@ -40,11 +41,17 @@ export default function ShowcasePage() {
         <section className="mx-auto max-w-5xl px-5 pt-16 pb-10 sm:pt-24">
           <Reveal>
             <h1 className="mx-auto max-w-[16ch] text-center text-[32px] font-light leading-[1.08] tracking-[-0.035em] sm:text-[56px]">
-              The whole shop, in two screens.
+              The whole shop, on one page.
             </h1>
             <p className="mx-auto mt-5 max-w-[44ch] text-center text-[13.5px] leading-relaxed text-muted">
               Built for clinics, salons, gyms and shops across India — free to start, no card.
             </p>
+          </Reveal>
+        </section>
+
+        <section className="mx-auto max-w-6xl px-5 pb-16">
+          <Reveal delay={120}>
+            <BestSellerRail />
           </Reveal>
         </section>
 

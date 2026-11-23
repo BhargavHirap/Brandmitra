@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { switchPlanAction } from "@/app/actions/business";
 import { PageHeader, Panel } from "@/components/ui";
 import { getAiUsage } from "@/lib/ai";
 import { productLimitLabel, requireBusiness, staffLimitLabel } from "@/lib/business";
@@ -11,9 +12,10 @@ export const metadata = { title: "Subscription" };
 /**
  * SUBSCRIPTION.
  *
- * The plan, the limits and real usage against them. Plan changes are shown but
- * cannot be bought: no payment provider is connected, so the buttons are
- * disabled and say why. That is deliberately not a fake checkout.
+ * The plan, the limits and real usage against them. Plan changes cannot be
+ * bought: no payment provider is connected, so the buttons are disabled and say
+ * why. Founders are the exception — they can switch the business to any plan for
+ * demos, and the switch is a real row update rather than a badge.
  */
 
 type PlanRow = {
@@ -102,7 +104,11 @@ export default async function SubscriptionPage() {
       <PageHeader
         eyebrow="Business"
         title="Subscription"
-        description="What your plan allows, and what you are using right now. Changing plans needs a payment provider, which is not connected yet."
+        description={
+          isFounder
+            ? "What your plan allows and what you are using right now. As a founder you can switch to any plan instantly while showing the product."
+            : "What your plan allows, and what you are using right now. Changing plans needs a payment provider, which is not connected yet."
+        }
         actions={
           <Link href="/dashboard/settings" className="btn btn-ghost text-[12.5px]">
             Settings
@@ -158,7 +164,11 @@ export default async function SubscriptionPage() {
 
       <Panel
         title="Plans"
-        description="Prices in rupees per month. Buttons stay disabled until payments exist."
+        description={
+          isFounder
+            ? "Prices in rupees per month. Founders can switch into any plan; everyone else sees the buttons disabled until payments exist."
+            : "Prices in rupees per month. Buttons stay disabled until payments exist."
+        }
         padded={false}
       >
         <ul className="divide-y divide-line sm:grid sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3">
@@ -188,14 +198,31 @@ export default async function SubscriptionPage() {
                     <li key={feature}>{feature}</li>
                   ))}
                 </ul>
-                <button
-                  type="button"
-                  disabled
-                  className="btn btn-ghost mt-3 w-full cursor-not-allowed text-[12px] opacity-60"
-                  title="No payment provider is connected on this deployment"
-                >
-                  {isCurrent ? "Your current plan" : "Payments not connected"}
-                </button>
+                {isFounder ? (
+                  <form action={switchPlanAction} className="mt-3">
+                    <input type="hidden" name="planId" value={plan.id} />
+                    <button
+                      type="submit"
+                      disabled={isCurrent}
+                      className={`w-full rounded-[10px] px-3 py-2 text-[12px] font-semibold transition-colors ${
+                        isCurrent
+                          ? "cursor-default border border-line bg-white text-muted"
+                          : "bg-brand text-white hover:bg-brand-600"
+                      }`}
+                    >
+                      {isCurrent ? "Your current plan" : `Switch to ${plan.name}`}
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="btn btn-ghost mt-3 w-full cursor-not-allowed text-[12px] opacity-60"
+                    title="No payment provider is connected on this deployment"
+                  >
+                    {isCurrent ? "Your current plan" : "Payments not connected"}
+                  </button>
+                )}
               </li>
             );
           })}
@@ -203,13 +230,20 @@ export default async function SubscriptionPage() {
       </Panel>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Why the buttons are disabled">
+        <Panel title={isFounder ? "How founder switching works" : "Why the buttons are disabled"}>
           <p className="text-[12px] leading-relaxed text-muted">
             Charging a card needs a payment provider with a business account and a verified webhook.
             None is configured here, so no plan can be bought and no card details are ever collected.
             The limits above are still enforced on the server, so the plan you are on behaves exactly
             as described.
           </p>
+          {isFounder && (
+            <p className="mt-2 text-[12px] leading-relaxed text-muted">
+              Switching here changes this business&apos;s real plan row, so the AI credit allowance and the
+              feature lists move with it. No money changes hands and no card is stored. Only founder
+              accounts see these buttons.
+            </p>
+          )}
           <p className="mt-2 text-[12px] leading-relaxed text-muted">
             Until then, the Free plan is fully usable: unlimited products, unlimited team seats and 20
             AI credits a month. No plan caps the size of a team.

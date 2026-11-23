@@ -70,8 +70,8 @@ export async function createBusinessAction(formData: FormData): Promise<void> {
 
   await db.run(
     `INSERT INTO subscriptions (id, business_id, plan_id, status, current_period_end, created_at)
-     VALUES (?, ?, 'free', 'active', NULL, ?)`,
-    [crypto.randomUUID(), businessId, now],
+     VALUES (?, ?, ?, 'active', NULL, ?)`,
+    [crypto.randomUUID(), businessId, user.isPlatformAdmin ? "enterprise" : "free", now],
   );
 
   // Start the catalogue with the categories this kind of business actually
@@ -97,6 +97,59 @@ export async function createBusinessAction(formData: FormData): Promise<void> {
 
   revalidatePath("/dashboard");
   redirect("/dashboard?welcome=1");
+}
+
+/**
+ * SWITCH PLAN — founders only.
+ *
+ * There is no payment provider, so a normal owner cannot buy a plan. A founder
+ * (the three co-founders running the company) can put the business on any plan
+ * in one click while demonstrating it, and that plan's limits and features
+ * really apply — this writes `subscriptions.plan_id`, it does not fake a badge.
+ * Everyone else is sent back to the same page unchanged.
+ */
+export async function switchPlanAction(formData: FormData): Promise<void> {
+  const { user, business, planId } = await requireBusiness();
+  if (!user.isPlatformAdmin) redirect("/dashboard/subscription");
+
+  const target = text(formData, "planId", 40);
+  const db = await getDb();
+  const plan = await db.first<{ id: string; name: string }>(
+    "SELECT id, name FROM plans WHERE id = ? AND is_active = 1",
+    [target],
+  );
+  if (!plan) redirect("/dashboard/subscription");
+
+  const now = new Date().toISOString();
+  const existing = await db.first<{ id: string }>(
+    "SELECT id FROM subscriptions WHERE business_id = ?",
+    [business.id],
+  );
+
+  if (existing) {
+    await db.run("UPDATE subscriptions SET plan_id = ?, status = 'active' WHERE business_id = ?", [
+      plan.id,
+      business.id,
+    ]);
+  } else {
+    await db.run(
+      "INSERT INTO subscriptions (id, business_id, plan_id, status, current_period_end, created_at) VALUES (?, ?, ?, 'active', NULL, ?)",
+      [crypto.randomUUID(), business.id, plan.id, now],
+    );
+  }
+
+  await logAudit({
+    businessId: business.id,
+    actorUserId: user.id,
+    action: "subscription.plan_switched",
+    entity: "subscription",
+    entityId: plan.id,
+    payload: { from: planId, to: plan.id },
+  });
+
+  revalidatePath("/dashboard/subscription");
+  revalidatePath("/dashboard");
+  redirect("/dashboard/subscription");
 }
 
 export async function updateStorefrontAction(formData: FormData): Promise<void> {

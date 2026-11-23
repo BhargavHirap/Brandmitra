@@ -5,19 +5,31 @@
    One place to change the whole product's look.
 ------------------------------------------------------------------ */
 @theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  --color-ink: #0b0b0f;
-  --color-ink-soft: #17181d;
-  --color-ink-line: #2a2c33;
-  --color-canvas: #f6f7f9;
-  --color-line: #e5e7eb;
-  --color-muted: #6b7280;
+  /* Apple's light surfaces: white page, #f5f5f7 bands, #1d1d1f type, #0071e3 blue. */
+  --color-ink: #1d1d1f;
+  --color-ink-soft: #f5f5f7;
+  --color-ink-line: #d2d2d7;
+  --color-canvas: #ffffff;
+  --color-line: #d2d2d7;
+  --color-muted: #6e6e73;
 
-  --color-brand: #2f6bff;
-  --color-brand-600: #2559e0;
-  --color-brand-soft: #eaf0ff;
+  --color-brand: #0071e3;
+  --color-brand-600: #0066cc;
+  --color-brand-soft: #e8f2ff;
+
+  /* shadcn/ui semantic tokens, so components/ui keeps working unchanged. */
+  --color-background: #ffffff;
+  --color-foreground: #1d1d1f;
+  --color-card: #ffffff;
+  --color-card-foreground: #1d1d1f;
+  --color-muted-foreground: #6e6e73;
+  --color-border: #d2d2d7;
+  --color-ring: #0071e3;
+  --color-primary: #0071e3;
+  --color-primary-foreground: #ffffff;
 
   --color-success: #0f9d58;
   --color-warning: #b45309;
@@ -38,8 +50,8 @@
   }
 
   ::selection {
-    background: #d7e3ff;
-    color: #0b0b0f;
+    background: #cfe8ff;
+    color: #1d1d1f;
   }
 
   :focus-visible {
@@ -98,12 +110,12 @@
   }
 
   .btn-primary {
-    background: var(--color-ink);
+    background: var(--color-brand);
     color: #fff;
   }
 
   .btn-primary:hover {
-    background: #1d1e24;
+    background: var(--color-brand-600);
   }
 
   .btn-brand {
@@ -167,6 +179,19 @@
   @keyframes orbit-spin {
     to {
       --orbit-spin: 360deg;
+    }
+  }
+
+  .rail-in {
+    animation: rail-fade-in 300ms ease both;
+  }
+
+  @keyframes rail-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
     }
   }
 }
