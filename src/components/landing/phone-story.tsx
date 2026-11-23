@@ -5,10 +5,12 @@ import { useEffect, useRef, useState } from "react";
 /**
  * PHONE STORY — one missed call, told as a thread.
  *
- * The section is tall on purpose: the phone sticks to the middle of the screen
- * while you scroll, and the conversation advances one message at a time —
- * missed call, call-back, a slot, the confirmation, the morning report. Nothing
- * bounces; each bubble fades in as you reach it.
+ * The section is two screens tall: one screen of phone held still, and one
+ * screen of scrolling to play the conversation through — missed call, call-back,
+ * a slot, the confirmation, the morning report. Nothing bounces; each bubble
+ * fades in as you reach it, and because the step is read from scroll position
+ * rather than counted from events, a fast flick lands on the right message
+ * instead of racing ahead or falling behind.
  *
  * With `prefers-reduced-motion: reduce` there is no tall scroll at all: the
  * section collapses to its own height and the whole thread is simply there. A
@@ -56,7 +58,7 @@ function BubbleRow({ bubble, shown }: { bubble: Bubble; shown: boolean }) {
 
   return (
     <li
-      className={`flex ${isDesk ? "justify-end" : "justify-start"} transition-[opacity,transform] duration-700 ease-out ${
+      className={`flex ${isDesk ? "justify-end" : "justify-start"} transition-[opacity,transform] duration-500 ease-out ${
         shown ? "opacity-100" : "opacity-0"
       }`}
       style={{ transform: shown ? "none" : "translateY(8px)" }}
@@ -136,7 +138,7 @@ export function PhoneStory() {
   return (
     <div
       ref={section}
-      className={reduced ? "relative" : "relative h-[230vh] sm:h-[260vh]"}
+      className={reduced ? "relative" : "relative h-[200svh]"}
       aria-label="What happens after a missed call"
     >
       <div
