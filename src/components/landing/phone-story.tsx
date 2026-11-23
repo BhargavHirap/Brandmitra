@@ -12,6 +12,11 @@ import { useEffect, useRef, useState } from "react";
  * rather than counted from events, a fast flick lands on the right message
  * instead of racing ahead or falling behind.
  *
+ * A flick that ends between two messages glides to the nearest one once your
+ * finger (or wheel) goes quiet, so the phone is never parked halfway through a
+ * bubble. Touching or scrolling again cancels that glide immediately — it is a
+ * tidy-up, not something that fights you.
+ *
  * With `prefers-reduced-motion: reduce` there is no tall scroll at all: the
  * section collapses to its own height and the whole thread is simply there. A
  * story you have to scroll to finish is not a story for everyone.
@@ -105,7 +110,50 @@ export function PhoneStory() {
     const node = section.current;
     if (!node) return;
 
+    const stepCount = THREAD.length - 1;
     let frame = 0;
+    let settle = 0;
+    let cooldown = 0;
+    let gliding = false;
+
+    const cancelGlide = () => {
+      gliding = false;
+      window.clearTimeout(cooldown);
+    };
+
+    /*
+     * Ease to the exact offset of the nearest message, but only while the phone
+     * is pinned. Past the end of the section the reader is on the next part of
+     * the page and must not be dragged back.
+     */
+    const easeToNearest = () => {
+      if (gliding) return;
+      const rect = node.getBoundingClientRect();
+      const travel = rect.height - window.innerHeight;
+      if (travel <= 0) return;
+      const progress = Math.min(1, Math.max(0, -rect.top / travel));
+      if (progress <= 0.001 || progress >= 0.999) return;
+      const index = Math.round(progress * stepCount);
+      const target = Math.round(window.scrollY + rect.top + (index / stepCount) * travel);
+      if (Math.abs(target - window.scrollY) < 6) return;
+      gliding = true;
+      window.scrollTo({ top: target, behavior: "smooth" });
+      window.clearTimeout(cooldown);
+      cooldown = window.setTimeout(() => {
+        gliding = false;
+      }, 700);
+    };
+
+    const onSettle = () => {
+      window.clearTimeout(settle);
+      settle = window.setTimeout(easeToNearest, 170);
+    };
+
+    const onIntent = () => {
+      window.clearTimeout(settle);
+      cancelGlide();
+    };
+
     const update = () => {
       frame = 0;
       const rect = node.getBoundingClientRect();
@@ -125,10 +173,20 @@ export function PhoneStory() {
 
     update();
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", onSettle, { passive: true });
     window.addEventListener("resize", onScroll);
+    window.addEventListener("wheel", onIntent, { passive: true });
+    window.addEventListener("touchstart", onIntent, { passive: true });
+    window.addEventListener("keydown", onIntent);
     return () => {
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", onSettle);
       window.removeEventListener("resize", onScroll);
+      window.removeEventListener("wheel", onIntent);
+      window.removeEventListener("touchstart", onIntent);
+      window.removeEventListener("keydown", onIntent);
+      window.clearTimeout(settle);
+      window.clearTimeout(cooldown);
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, [reduced]);
