@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { BrandLink } from "@/components/brand";
-import { DishOrbitCarousel } from "@/components/landing/dish-orbit-carousel";
+import { PhoneStory } from "@/components/landing/phone-story";
 import { Reveal } from "@/components/landing/reveal";
-import { WarpCarousel } from "@/components/landing/warp-carousel";
 
 export const metadata = {
   title: "Vantra — your shop, online, and it never misses a call",
@@ -11,19 +10,18 @@ export const metadata = {
 };
 
 /**
- * LANDING PAGE.
+ * LANDING PAGE — "One number".
  *
- * Six things and nothing else: a bar, a promise, one line about who it is for,
- * two showcases, one last ask, and a footer. The surfaces are the neutral canvas
- * the whole app uses; the brand blue appears only as a dot, an accent and the
- * active carousel marker. Copy is the owner's own wording, not invented claims.
+ * The page is built around a single missed call instead of a feature grid: a
+ * bar, one light-weight promise, the thread that follows that call, one line
+ * about who it is for, one last ask, and a small footer. The phone sticks while
+ * the conversation advances, so the page has one continuous idea rather than
+ * two showcases competing.
  *
- * The carousel is given the same neutral background and a brand-soft glow, so it
- * cannot sit on the page as a white block with its own colour scheme.
+ * Surfaces are the neutral canvas the whole app uses; the brand blue appears
+ * only as an accent (the send dot, the active marker). The carousels still live
+ * at /showcase for anyone who wants the screens side by side.
  */
-
-const NEUTRAL = "#f6f7f9";
-const GLOW = "#eaf0ff";
 
 export default function LandingPage() {
   return (
@@ -44,10 +42,10 @@ export default function LandingPage() {
 
       <main>
         {/* 1 · The promise */}
-        <section className="mx-auto max-w-5xl px-5 pt-16 pb-8 sm:pt-24">
+        <section className="mx-auto max-w-5xl px-5 pt-16 pb-6 sm:pt-24">
           <Reveal>
             <h1 className="mx-auto max-w-[15ch] text-center text-[34px] font-light leading-[1.06] tracking-[-0.035em] sm:text-[64px]">
-              Your shop, online — and it never misses a call.
+              The calls you miss are someone else&apos;s customer.
             </h1>
             <div className="mt-8 flex flex-col items-center gap-3">
               <Link href="/signup" className="btn btn-primary h-11 px-6 text-[13.5px]">
@@ -58,18 +56,13 @@ export default function LandingPage() {
           </Reveal>
         </section>
 
-        {/* 2 · The two screens */}
-        <section className="mx-auto max-w-5xl px-5 pb-16 sm:pb-20">
-          <Reveal delay={120}>
-            <WarpCarousel background={NEUTRAL} glow={GLOW} />
-            <p className="mt-5 text-center text-[10.5px] text-muted">
-              Example views of the dashboard and the front desk.
-            </p>
-          </Reveal>
+        {/* 2 · One missed call, told as a thread */}
+        <section className="mx-auto max-w-5xl px-5">
+          <PhoneStory />
         </section>
 
         {/* 3 · One line about who it is for */}
-        <section className="mx-auto max-w-5xl px-5 pb-16 sm:pb-20">
+        <section className="mx-auto max-w-5xl px-5 pt-14 pb-16 sm:pt-16 sm:pb-20">
           <Reveal>
             <p className="mx-auto max-w-[46ch] text-center text-[15px] leading-relaxed text-muted sm:text-[17px]">
               Built for clinics, salons, gyms and shops across India — free to start, no card.
@@ -77,13 +70,18 @@ export default function LandingPage() {
           </Reveal>
         </section>
 
-        {/* 4 · What orbits one business */}
-        <section className="border-y border-line/70 py-16 sm:py-20" style={{ overflowX: "clip" }}>
-          <div className="mx-auto max-w-5xl px-5">
-            <Reveal>
-              <DishOrbitCarousel />
-            </Reveal>
-          </div>
+        {/* 4 · The screens themselves, for anyone who wants the detail */}
+        <section className="border-y border-line/70 py-10">
+          <Reveal>
+            <div className="mx-auto flex max-w-5xl flex-col items-center gap-2 px-5 text-center sm:flex-row sm:justify-between sm:text-left">
+              <p className="text-[12.5px] text-muted">
+                Want the dashboard and the front desk side by side?
+              </p>
+              <Link href="/showcase" className="text-[12.5px] font-medium underline decoration-line underline-offset-4 hover:decoration-ink">
+                Open the showcase
+              </Link>
+            </div>
+          </Reveal>
         </section>
 
         {/* 5 · The last ask */}

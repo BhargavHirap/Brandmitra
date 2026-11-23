@@ -172,6 +172,27 @@
 }
 
 /*
+ * The phone story shrinks on short screens so it always fits between the sticky
+ * bar and the bottom of the screen instead of losing its composer or caption.
+ */
+.phone-scaled {
+  transform-origin: center;
+  transition: transform 300ms ease;
+}
+
+@media (max-height: 820px) {
+  .phone-scaled {
+    transform: scale(0.9);
+  }
+}
+
+@media (max-height: 700px) {
+  .phone-scaled {
+    transform: scale(0.8);
+  }
+}
+
+/*
  * One animated angle, shared by every chip. Each chip's transform is
  *   rotate(angle + base) translateY(-r) rotate(-(angle + base))
  * so the outward push happens on the ring and the last rotation cancels the
