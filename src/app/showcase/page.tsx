@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BrandLink } from "@/components/brand";
 import { DishOrbitCarousel } from "@/components/landing/dish-orbit-carousel";
 import { Reveal } from "@/components/landing/reveal";
+import { FooterLinks, SocialLinks } from "@/components/landing/social-links";
 import { WarpCarousel } from "@/components/landing/warp-carousel";
 
 export const metadata = {
@@ -79,14 +80,8 @@ export default function ShowcasePage() {
       <footer className="border-t border-line/70">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-5 py-8 text-[11px] text-muted sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} Vantra</p>
-          <nav className="flex items-center gap-5">
-            <Link href="/" className="hover:text-ink">
-              Home
-            </Link>
-            <Link href="/login" className="hover:text-ink">
-              Sign in
-            </Link>
-          </nav>
+          <SocialLinks />
+          <FooterLinks pageHref="/" pageLabel="Home" />
         </div>
       </footer>
     </div>
