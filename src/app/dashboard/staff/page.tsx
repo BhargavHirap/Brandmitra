@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { createResetLinkAction, readHandover } from "@/app/actions/password-reset";
 import { addStaffAction, changeStaffRoleAction, removeStaffAction } from "@/app/actions/staff";
+import { CopyLink } from "@/components/copy-link";
 import { PageHeader, Panel, Stat } from "@/components/ui";
 import { requireBusiness, staffLimitLabel } from "@/lib/business";
 import { getDb } from "@/lib/db";
@@ -46,13 +48,13 @@ const ROLE_LABELS: Record<string, string> = {
 export default async function StaffPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; removed?: string; error?: string }>;
+  searchParams: Promise<{ saved?: string; removed?: string; error?: string; link?: string }>;
 }) {
   const { business, planId, role, user } = await requireBusiness();
   const params = await searchParams;
   const db = await getDb();
 
-  const [members, plan] = await Promise.all([
+  const [members, plan, pendingResets] = await Promise.all([
     db.all<MemberRow>(
       `SELECT m.id, m.role, m.created_at, u.email, u.full_name, u.id AS user_id
          FROM business_members m
@@ -65,7 +67,19 @@ export default async function StaffPage({
       "SELECT staff_limit, name FROM plans WHERE id = ?",
       [planId],
     ),
+    db.all<{ user_id: string; email: string; created_at: string }>(
+      `SELECT u.id AS user_id, u.email, MAX(r.created_at) AS created_at
+         FROM password_resets r
+         JOIN users u ON u.id = r.user_id
+         JOIN business_members m ON m.user_id = u.id
+        WHERE m.business_id = ? AND r.used_at IS NULL AND r.expires_at > ?
+        GROUP BY u.id, u.email
+        ORDER BY created_at DESC LIMIT 10`,
+      [business.id, new Date().toISOString()],
+    ),
   ]);
+
+  const handover = await readHandover();
 
   const limit = Number(plan?.staff_limit ?? 1);
   const used = members.length;
@@ -223,6 +237,70 @@ export default async function StaffPage({
               </p>
             </Panel>
           )}
+
+          <Panel
+            title="Password resets"
+            description={pendingResets.length > 0 ? `${pendingResets.length} waiting` : "Nobody locked out"}
+          >
+            {handover && (
+              <div className="mb-3 rounded-xl border border-brand/25 bg-brand-soft/60 p-2.5">
+                <p className="text-[11px] font-semibold text-ink">
+                  Link for {handover.email} — shown once, works for one hour
+                </p>
+                <p className="mt-1 break-all font-mono text-[10.5px] leading-relaxed text-muted">
+                  {handover.link}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <CopyLink value={handover.link} />
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(
+                      `Reset your Vantra password (works once, 1 hour): ${handover.link}`,
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-brand px-2.5 py-1 text-[11.5px]"
+                  >
+                    Send on WhatsApp
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {pendingResets.length === 0 ? (
+              <p className="text-[11.5px] leading-relaxed text-muted">
+                When someone uses <span className="font-medium text-ink">Forgot password</span> on the
+                sign-in page, they appear here. No email is sent on this deployment, so you hand them
+                the link yourself.
+              </p>
+            ) : (
+              <ul className="space-y-2.5">
+                {pendingResets.map((row) => (
+                  <li key={row.user_id} className="rounded-xl border border-line p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-[12px] font-medium">{row.email}</p>
+                        <p className="text-[10.5px] text-muted">
+                          asked {formatDateTime(row.created_at)}
+                        </p>
+                      </div>
+                      {isOwner && (
+                        <form action={createResetLinkAction}>
+                          <input type="hidden" name="userId" value={row.user_id} />
+                          <button type="submit" className="btn btn-ghost px-2.5 py-1 text-[11px]">
+                            Create reset link
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-2 text-[10.5px] leading-relaxed text-muted">
+              A link works once, expires in an hour, and signs the account out everywhere. Only the
+              owner can create one.
+            </p>
+          </Panel>
 
           <Panel title="What each role can do">
             <ul className="space-y-2 text-[11.5px] leading-relaxed text-muted">

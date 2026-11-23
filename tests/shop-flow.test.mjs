@@ -132,14 +132,20 @@ function findActionId(html, fields, without = []) {
 }
 
 function createApi(base) {
-  const jar = { cookie: "" };
+  const jar = { cookie: "", all: {} };
 
   async function send(pathname, init = {}) {
     const headers = new Headers(init.headers);
-    if (jar.cookie) headers.set("cookie", jar.cookie);
+    const jarCookies = Object.values(jar.all);
+    if (jarCookies.length > 0) headers.set("cookie", jarCookies.join("; "));
     const res = await fetch(new URL(pathname, base), { redirect: "manual", ...init, headers });
     for (const cookie of res.headers.getSetCookie()) {
-      if (cookie.startsWith("bm_session=")) jar.cookie = cookie.split(";")[0];
+      const pair = cookie.split(";")[0];
+      const [name] = pair.split("=");
+      // Every cookie the app sets, not just the session: the one-time reset
+      // link travels in an httpOnly cookie too.
+      jar.all[name] = pair;
+      if (name === "bm_session") jar.cookie = pair;
     }
     return res;
   }
@@ -175,7 +181,7 @@ function createApi(base) {
     return location;
   }
 
-  return { jar, get, submit };
+  return { jar, get, submit, cookies: () => Object.values(jar.all).join("; ") };
 }
 
 /* ------------------------------------------------------------------ */
@@ -752,6 +758,99 @@ test("a clinic front desk books a slot, chases a callback and closes it", { time
         `a ${industry} desk should show "${word}"`,
       );
     }
+  } finally {
+    purge();
+    if (db) {
+      db.close();
+      db = null;
+    }
+    await server.stop();
+  }
+});
+
+test("a forgotten password is reset through a one-time owner-handed link", { timeout: 240_000 }, async () => {
+  const server = await ensureServer();
+  const owner = createApi(server.base);
+  const email = `e2e-reset-${stamp}@example.com`;
+  const oldPassword = ownerPassword;
+  const newPassword = `reset-${stamp}-new`;
+  const shop = `E2E Reset ${stamp}`;
+  const text = (html) => html.replace(/<!--[\s\S]*?-->/g, "");
+
+  try {
+    purge();
+
+    assert.equal(
+      await owner.submit("/signup", { fullName: "E2E Reset", email, password: oldPassword }),
+      "/onboarding",
+    );
+    assert.equal(
+      await owner.submit("/onboarding", { name: shop, industry: "clinic", city: "Pune", tagline: "" }),
+      "/dashboard?welcome=1",
+    );
+
+    /* ---- The request page says who will send the link ---------------- */
+    let page = await owner.get("/forgot");
+    assert.equal(page.res.status, 200, "the forgot page opens");
+    assert.ok(text(page.html).includes("Forgot password"), "it is the forgot page");
+    assert.ok(
+      text(page.html).includes("Nothing is emailed yet"),
+      "it must not promise an email this deployment cannot send",
+    );
+
+    let location = await owner.submit("/forgot", { email });
+    assert.equal(location, "/forgot?sent=1", "the request is accepted");
+    assert.equal(
+      row("SELECT COUNT(*) AS n FROM password_resets WHERE used_at IS NULL").n >= 1,
+      true,
+      "a single-use reset row is created",
+    );
+
+    /* ---- Only the owner can turn that request into a link ------------ */
+    const business = row("SELECT id FROM businesses WHERE name = ?", shop);
+    const ownerUser = row("SELECT id FROM users WHERE email = ?", email);
+
+    page = await owner.get("/dashboard/staff");
+    assert.ok(text(page.html).includes("Password resets"), "the owner sees the reset panel");
+    assert.ok(text(page.html).includes("Create reset link"), "there is a button to make the link");
+
+    location = await owner.submit("/dashboard/staff", { userId: ownerUser.id });
+    assert.equal(location, "/dashboard/staff?link=1", `creating the link should work (got ${location})`);
+
+    page = await owner.get("/dashboard/staff");
+    const match = text(page.html).match(/\/reset\/[A-Za-z0-9_-]{16,}/);
+    assert.ok(match, "the link is shown once to the owner");
+    const resetPath = match[0];
+    assert.ok(
+      text(page.html).includes("Send on WhatsApp"),
+      "the owner can hand it over without an email service",
+    );
+
+    /* ---- The link sets a new password -------------------------------- */
+    page = await owner.get(resetPath);
+    assert.equal(page.res.status, 200);
+    assert.ok(text(page.html).includes("Choose a new password"), "the reset form opens");
+
+    location = await owner.submit(resetPath, {
+      token: resetPath.split("/").pop(),
+      password: newPassword,
+      confirmPassword: newPassword,
+    });
+    assert.equal(location, "/login?reset=1", `the reset should finish (got ${location})`);
+
+    const reused = await owner.get(resetPath);
+    assert.ok(
+      text(reused.html).includes("This link has expired"),
+      "a used link cannot be used twice",
+    );
+
+    /* ---- Old password dead, new password works ---------------------- */
+    const fresh = createApi(server.base);
+    location = await fresh.submit("/login", { email, password: oldPassword });
+    assert.equal(location, "/login?error=credentials", "the old password must stop working");
+
+    location = await fresh.submit("/login", { email, password: newPassword });
+    assert.equal(location, "/dashboard", "the new password signs in");
   } finally {
     purge();
     if (db) {

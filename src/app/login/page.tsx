@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signInAction } from "@/app/actions/auth";
 import { AuthFooterLink, AuthShell, FormError } from "@/components/auth-shell";
@@ -12,15 +13,19 @@ const ERRORS: Record<string, string> = {
   missing: "Enter your email and password to continue.",
 };
 
+const NOTICES: Record<string, string> = {
+  reset: "Password changed, and every other device is signed out. Sign in with the new one.",
+};
+
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string }>;
 }) {
   const user = await getCurrentUser();
   if (user) redirect("/dashboard");
 
-  const { error } = await searchParams;
+  const { error, reset } = await searchParams;
 
   return (
     <AuthShell
@@ -33,6 +38,11 @@ export default async function LoginPage({
       }
     >
       <FormError message={error ? (ERRORS[error] ?? "Something went wrong. Please try again.") : null} />
+      {reset && NOTICES.reset && (
+        <div className="mb-4 rounded-[10px] border border-success/20 bg-success/5 px-3 py-2 text-[12.5px] text-success">
+          {NOTICES.reset}
+        </div>
+      )}
       <form action={signInAction} className="space-y-4">
         <div>
           <label className="label" htmlFor="email">Work email</label>
@@ -47,7 +57,12 @@ export default async function LoginPage({
           />
         </div>
         <div>
-          <label className="label" htmlFor="password">Password</label>
+          <div className="flex items-baseline justify-between gap-2">
+            <label className="label" htmlFor="password">Password</label>
+            <Link href="/forgot" className="mb-1.5 text-[11.5px] text-muted hover:text-ink">
+              Forgot password?
+            </Link>
+          </div>
           <input
             id="password"
             name="password"
