@@ -72,8 +72,21 @@ export async function signInAction(formData: FormData): Promise<void> {
 
   // A co-founder who already had an account before FOUNDER_EMAILS was set gets
   // the flag on their next sign-in, so nobody has to run SQL by hand.
-  if (!user.is_platform_admin && isFounderEmail(user.email)) {
-    await db.run("UPDATE users SET is_platform_admin = 1 WHERE id = ?", [user.id]);
+  if (isFounderEmail(user.email)) {
+    if (!user.is_platform_admin) {
+      await db.run("UPDATE users SET is_platform_admin = 1 WHERE id = ?", [user.id]);
+    }
+
+    // The flag alone only opens screens. A business created before the flag
+    // existed is still on Free, so its AI allowance and plan features would be
+    // the Free ones. Put a founder's own business on the top plan too — this
+    // only ever touches a business they are already a member of.
+    await db.run(
+      `UPDATE subscriptions SET plan_id = 'enterprise', status = 'active'
+        WHERE plan_id = 'free'
+          AND business_id IN (SELECT business_id FROM business_members WHERE user_id = ?)`,
+      [user.id],
+    );
   }
 
   await createSession(user.id);
