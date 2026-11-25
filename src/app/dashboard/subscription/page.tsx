@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { startSubscriptionAction } from "@/app/actions/billing";
 import { switchPlanAction } from "@/app/actions/business";
 import { PageHeader, Panel } from "@/components/ui";
 import { getAiUsage } from "@/lib/ai";
 import { productLimitLabel, requireBusiness, staffLimitLabel } from "@/lib/business";
 import { getDb } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
+import { isRazorpayConfigured } from "@/lib/razorpay";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Subscription" };
@@ -12,10 +14,11 @@ export const metadata = { title: "Subscription" };
 /**
  * SUBSCRIPTION.
  *
- * The plan, the limits and real usage against them. Plan changes cannot be
- * bought: no payment provider is connected, so the buttons are disabled and say
- * why. Founders are the exception — they can switch the business to any plan for
- * demos, and the switch is a real row update rather than a badge.
+ * The plan, the limits and real usage against them. A paid plan is bought through
+ * Razorpay's hosted page and confirmed by webhook, so this page can only start a
+ * checkout; it never switches a paid plan on its own. When no Razorpay keys are
+ * configured the buttons are disabled and say why. Founders are the exception —
+ * they switch instantly, and the switch is a real row update rather than a badge.
  */
 
 type PlanRow = {
@@ -73,6 +76,7 @@ function Bar({
 export default async function SubscriptionPage() {
   const { business, planId, user } = await requireBusiness();
   const isFounder = user.isPlatformAdmin;
+  const billingReady = isRazorpayConfigured();
   const db = await getDb();
 
   const [subscription, plans, productRow, staffRow, credits] = await Promise.all([
@@ -107,7 +111,7 @@ export default async function SubscriptionPage() {
         description={
           isFounder
             ? "What your plan allows and what you are using right now. As a founder you can switch to any plan instantly while showing the product."
-            : "What your plan allows, and what you are using right now. Changing plans needs a payment provider, which is not connected yet."
+            : "What your plan allows, and what you are using right now."
         }
         actions={
           <Link href="/dashboard/settings" className="btn btn-ghost text-[12.5px]">
@@ -166,8 +170,10 @@ export default async function SubscriptionPage() {
         title="Plans"
         description={
           isFounder
-            ? "Prices in rupees per month. Founders can switch into any plan; everyone else sees the buttons disabled until payments exist."
-            : "Prices in rupees per month. Buttons stay disabled until payments exist."
+            ? "Prices in rupees per month. Founders can switch into any plan."
+            : billingReady
+              ? "Prices in rupees per month. Paying opens Razorpay's secure page, and the plan changes here once Razorpay confirms it."
+              : "Prices in rupees per month. Buttons stay disabled until a payment provider is connected."
         }
         padded={false}
       >
@@ -213,6 +219,31 @@ export default async function SubscriptionPage() {
                       {isCurrent ? "Your current plan" : `Switch to ${plan.name}`}
                     </button>
                   </form>
+                ) : plan.price_inr === 0 ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="btn btn-ghost mt-3 w-full cursor-not-allowed text-[12px] opacity-60"
+                  >
+                    {isCurrent ? "Your current plan" : "Free plan — no payment"}
+                  </button>
+                ) : billingReady ? (
+                  <form action={startSubscriptionAction} className="mt-3">
+                    <input type="hidden" name="planId" value={plan.id} />
+                    <button
+                      type="submit"
+                      disabled={isCurrent}
+                      className={`w-full rounded-[10px] px-3 py-2 text-[12px] font-semibold transition-colors ${
+                        isCurrent
+                          ? "cursor-default border border-line bg-white text-muted"
+                          : "bg-brand text-white hover:bg-brand-600"
+                      }`}
+                    >
+                      {isCurrent
+                        ? "Your current plan"
+                        : `Pay ${formatMoney(plan.price_inr)} / month`}
+                    </button>
+                  </form>
                 ) : (
                   <button
                     type="button"
@@ -230,10 +261,19 @@ export default async function SubscriptionPage() {
       </Panel>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title={isFounder ? "How founder switching works" : "Why the buttons are disabled"}>
+        <Panel
+          title={
+            isFounder
+              ? "How founder switching works"
+              : billingReady
+                ? "How paying works"
+                : "Why the buttons are disabled"
+          }
+        >
           <p className="text-[12px] leading-relaxed text-muted">
-            Charging a card needs a payment provider with a business account and a verified webhook.
-            None is configured here, so no plan can be bought and no card details are ever collected.
+            {billingReady
+              ? "Paying opens Razorpay's secure page. Card and UPI details are entered there and never reach this app. Your plan changes only after Razorpay's webhook confirms the subscription, so nothing unlocks from a click alone, and a cancelled payment buys nothing."
+              : "Charging a card needs a payment provider with a business account and a verified webhook. None is configured here, so no plan can be bought and no card details are ever collected."}{" "}
             The limits above are still enforced on the server, so the plan you are on behaves exactly
             as described.
           </p>

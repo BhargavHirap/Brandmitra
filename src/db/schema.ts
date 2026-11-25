@@ -119,6 +119,21 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS razorpay_plans (
+  plan_id TEXT PRIMARY KEY REFERENCES plans(id) ON DELETE CASCADE,
+  razorpay_plan_id TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS razorpay_checkouts (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  plan_id TEXT NOT NULL REFERENCES plans(id),
+  status TEXT NOT NULL DEFAULT 'created',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_razorpay_checkouts_business ON razorpay_checkouts(business_id);
+
 CREATE TABLE IF NOT EXISTS product_categories (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
