@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BrandLink } from "@/components/brand";
@@ -45,7 +46,12 @@ type StorefrontRow = {
   social_links: string | null;
 };
 
-async function loadStorefront(slug: string) {
+/**
+ * Memoised per request: `generateMetadata` and the page both need this row, and
+ * charging a customer two database round trips for one business is waste. The
+ * key is the slug, so two different storefronts never share an answer.
+ */
+const loadStorefront = cache(async function loadStorefront(slug: string) {
   const db = await getDb();
   return db.first<StorefrontRow>(
     `SELECT b.id, b.slug, b.name, b.industry, b.status,
@@ -56,7 +62,7 @@ async function loadStorefront(slug: string) {
       WHERE b.slug = ?`,
     [slug],
   );
-}
+});
 
 export async function generateMetadata({
   params,

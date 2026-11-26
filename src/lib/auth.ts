@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db";
@@ -136,7 +137,14 @@ export async function destroySession(): Promise<void> {
   store.delete(SESSION_COOKIE);
 }
 
-export async function getCurrentUser(): Promise<SessionUser | null> {
+/**
+ * Memoised for the length of one request.
+ *
+ * The dashboard layout and the page inside it both ask who is signed in, and
+ * every database round trip to D1 costs real milliseconds. `cache` makes the
+ * second ask free without ever sharing the answer between two people's requests.
+ */
+export const getCurrentUser = cache(async function getCurrentUser(): Promise<SessionUser | null> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -165,7 +173,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     fullName: row.full_name,
     isPlatformAdmin: Boolean(row.is_platform_admin),
   };
-}
+});
 
 export async function requireUser(): Promise<SessionUser> {
   const user = await getCurrentUser();

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { requireUser, type SessionUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -122,14 +123,21 @@ export function effectiveRole(user: SessionUser, role: string): string {
   return user.isPlatformAdmin ? "owner" : role;
 }
 
-/** Use inside any /dashboard page or action. Redirects if the user has no business yet. */
-export async function requireBusiness(): Promise<MembershipContext> {
+/**
+ * Use inside any /dashboard page or action. Redirects if the user has no business yet.
+ *
+ * Memoised for one request: the dashboard layout resolves the business to draw
+ * its sidebar, and the page below resolves it again for its queries. Asking D1
+ * twice for the same row on every navigation is a cost with no benefit, so the
+ * second caller gets the first caller's answer.
+ */
+export const requireBusiness = cache(async function requireBusiness(): Promise<MembershipContext> {
   const user = await requireUser();
   const membership = await getMembership(user.id);
   if (!membership) redirect("/onboarding");
   if (membership.business.status === "suspended") redirect("/suspended");
   return { user, ...membership, role: effectiveRole(user, membership.role) };
-}
+});
 
 export async function logAudit(input: {
   businessId: string | null;

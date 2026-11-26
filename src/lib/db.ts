@@ -129,12 +129,39 @@ async function applySchema(db: Db): Promise<void> {
   }
 }
 
+/** Every table name the schema creates, read once from the SQL itself. */
+const SCHEMA_TABLES = [...SCHEMA_SQL.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-z_]+)/gi)].map(
+  (match) => match[1],
+);
+
+/**
+ * True when every table this build expects is already there.
+ *
+ * This matters more than it looks. Applying the schema is 76 statements — 35
+ * tables, 26 indexes and 14 seed rows — and on D1 each one is its own round
+ * trip. Running that on every cold isolate meant a storefront took 7 seconds to
+ * open whenever the isolate had been recycled, because all 76 ran before the
+ * first query the page actually needed. One cheap question to `sqlite_master`
+ * replaces all of it, and an empty or partial database still gets the full
+ * idempotent schema.
+ */
+async function schemaReady(db: Db): Promise<boolean> {
+  if (SCHEMA_TABLES.length === 0) return false;
+  const row = await db.first<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM sqlite_master
+      WHERE type = 'table' AND name IN (${SCHEMA_TABLES.map(() => "?").join(", ")})`,
+    SCHEMA_TABLES,
+  );
+  return Number(row?.n ?? 0) === SCHEMA_TABLES.length;
+}
+
 let cached: Promise<Db> | null = null;
 
 async function connect(): Promise<Db> {
   const d1 = findD1Binding();
   const db: Db = d1 ? createD1Adapter(d1) : createSqliteAdapter(openLocalSqlite());
-  await applySchema(db);
+  // A database that is already set up must not pay for the whole schema again.
+  if (!(await schemaReady(db))) await applySchema(db);
   return db;
 }
 
