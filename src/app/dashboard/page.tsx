@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { EmptyState, PageHeader, Panel, Stat } from "@/components/ui";
 import { isUnlimitedProducts, requireBusiness } from "@/lib/business";
-import { getDb } from "@/lib/db";
+import { getDb, type Row } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { industryLabel } from "@/lib/industries";
 import { workspaceFor } from "@/lib/workspace";
@@ -20,6 +20,12 @@ export const metadata = { title: "Overview" };
 type Totals = { orders: number; revenue: number };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** A batch returns one result set per statement, in the order they were sent. */
+function rowAt<T>(rows: Row[] | undefined): T | null {
+  const row = rows?.[0];
+  return row ? (row as unknown as T) : null;
+}
 
 function utcDayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -65,72 +71,111 @@ export default async function DashboardOverviewPage({
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const chartStart = new Date(startOfToday.getTime() - 6 * DAY_MS);
 
-  const [lifetime, today, month, pending, completed, productCount, customerCount] =
-    await Promise.all([
-      db.first<Totals>(
-        `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
-           FROM orders WHERE business_id = ? AND status NOT IN ('rejected', 'cancelled')`,
-        [business.id],
-      ),
-      db.first<Totals>(
-        `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
-           FROM orders WHERE business_id = ? AND created_at >= ?
-             AND status NOT IN ('rejected', 'cancelled')`,
-        [business.id, startOfToday.toISOString()],
-      ),
-      db.first<Totals>(
-        `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
-           FROM orders WHERE business_id = ? AND created_at >= ?
-             AND status NOT IN ('rejected', 'cancelled')`,
-        [business.id, startOfMonth.toISOString()],
-      ),
-      db.first<{ n: number }>(
-        `SELECT COUNT(*) AS n FROM orders
-          WHERE business_id = ?
-            AND status IN ('new', 'accepted', 'preparing', 'ready', 'out_for_delivery')`,
-        [business.id],
-      ),
-      db.first<{ n: number }>(
-        `SELECT COUNT(*) AS n FROM orders WHERE business_id = ? AND status = 'delivered'`,
-        [business.id],
-      ),
-      db.first<{ n: number }>(
-        "SELECT COUNT(*) AS n FROM products WHERE business_id = ? AND is_active = 1",
-        [business.id],
-      ),
-      db.first<{ n: number }>("SELECT COUNT(*) AS n FROM customers WHERE business_id = ?", [
-        business.id,
-      ]),
-    ]);
-
-  const [plan, profile, recentAudit, dailyRows, topProducts] = await Promise.all([
-    db.first<{ name: string; product_limit: number; ai_credits: number }>(
-      "SELECT name, product_limit, ai_credits FROM plans WHERE id = ?",
-      [planId],
-    ),
-    db.first<{ description: string; tagline: string; phone: string; template: string }>(
-      "SELECT description, tagline, phone, template FROM business_profiles WHERE business_id = ?",
-      [business.id],
-    ),
-    db.all<{ action: string; entity: string; actor_type: string; created_at: string }>(
-      `SELECT action, entity, actor_type, created_at FROM audit_logs
-        WHERE business_id = ? ORDER BY created_at DESC LIMIT 6`,
-      [business.id],
-    ),
-    db.all<{ day: string; orders: number; revenue: number }>(
-      `SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
-         FROM orders
-        WHERE business_id = ? AND created_at >= ? AND status NOT IN ('rejected', 'cancelled')
-        GROUP BY day`,
-      [business.id, chartStart.toISOString()],
-    ),
-    db.all<{ name: string; qty: number; revenue: number }>(
-      `SELECT name_snapshot AS name, SUM(quantity) AS qty, SUM(line_total) AS revenue
-         FROM order_items WHERE business_id = ?
-        GROUP BY name_snapshot ORDER BY qty DESC LIMIT 5`,
-      [business.id],
-    ),
+  /*
+   * Two round trips, not a dozen.
+   *
+   * On D1 each statement is its own HTTP request, so the seven counters this
+   * page needs used to cost seven round trips and the five panels cost five
+   * more, no matter how fast the queries themselves were. Batching sends each
+   * group as one request, so the overview now needs exactly two — and the
+   * statements inside a batch still run against the same database snapshot.
+   */
+  const counters = await db.batch([
+    {
+      sql: `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
+              FROM orders WHERE business_id = ? AND status NOT IN ('rejected', 'cancelled')`,
+      params: [business.id],
+    },
+    {
+      sql: `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
+              FROM orders WHERE business_id = ? AND created_at >= ?
+                AND status NOT IN ('rejected', 'cancelled')`,
+      params: [business.id, startOfToday.toISOString()],
+    },
+    {
+      sql: `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
+              FROM orders WHERE business_id = ? AND created_at >= ?
+                AND status NOT IN ('rejected', 'cancelled')`,
+      params: [business.id, startOfMonth.toISOString()],
+    },
+    {
+      sql: `SELECT COUNT(*) AS n FROM orders
+             WHERE business_id = ?
+               AND status IN ('new', 'accepted', 'preparing', 'ready', 'out_for_delivery')`,
+      params: [business.id],
+    },
+    {
+      sql: "SELECT COUNT(*) AS n FROM orders WHERE business_id = ? AND status = 'delivered'",
+      params: [business.id],
+    },
+    {
+      sql: "SELECT COUNT(*) AS n FROM products WHERE business_id = ? AND is_active = 1",
+      params: [business.id],
+    },
+    {
+      sql: "SELECT COUNT(*) AS n FROM customers WHERE business_id = ?",
+      params: [business.id],
+    },
   ]);
+
+  const panels = await db.batch([
+    {
+      sql: "SELECT name, product_limit, ai_credits FROM plans WHERE id = ?",
+      params: [planId],
+    },
+    {
+      sql: "SELECT description, tagline, phone, template FROM business_profiles WHERE business_id = ?",
+      params: [business.id],
+    },
+    {
+      sql: `SELECT action, entity, actor_type, created_at FROM audit_logs
+             WHERE business_id = ? ORDER BY created_at DESC LIMIT 6`,
+      params: [business.id],
+    },
+    {
+      sql: `SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS orders,
+                   COALESCE(SUM(total), 0) AS revenue
+              FROM orders
+             WHERE business_id = ? AND created_at >= ? AND status NOT IN ('rejected', 'cancelled')
+             GROUP BY day`,
+      params: [business.id, chartStart.toISOString()],
+    },
+    {
+      sql: `SELECT name_snapshot AS name, SUM(quantity) AS qty, SUM(line_total) AS revenue
+              FROM order_items WHERE business_id = ?
+             GROUP BY name_snapshot ORDER BY qty DESC LIMIT 5`,
+      params: [business.id],
+    },
+  ]);
+
+  const lifetime = rowAt<Totals>(counters[0]);
+  const today = rowAt<Totals>(counters[1]);
+  const month = rowAt<Totals>(counters[2]);
+  const pending = rowAt<{ n: number }>(counters[3]);
+  const completed = rowAt<{ n: number }>(counters[4]);
+  const productCount = rowAt<{ n: number }>(counters[5]);
+  const customerCount = rowAt<{ n: number }>(counters[6]);
+
+  const plan = rowAt<{ name: string; product_limit: number; ai_credits: number }>(panels[0]);
+  const profile = rowAt<{ description: string; tagline: string; phone: string; template: string }>(
+    panels[1],
+  );
+  const recentAudit = (panels[2] ?? []) as unknown as {
+    action: string;
+    entity: string;
+    actor_type: string;
+    created_at: string;
+  }[];
+  const dailyRows = (panels[3] ?? []) as unknown as {
+    day: string;
+    orders: number;
+    revenue: number;
+  }[];
+  const topProducts = (panels[4] ?? []) as unknown as {
+    name: string;
+    qty: number;
+    revenue: number;
+  }[];
 
   const totals: Totals = {
     orders: Number(lifetime?.orders ?? 0),

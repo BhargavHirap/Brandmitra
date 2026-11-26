@@ -13,22 +13,38 @@ import { SCHEMA_SQL, SEED_SQL, splitSql } from "@/db/schema";
 export type Row = Record<string, unknown>;
 export type Param = string | number | null;
 
+/** One statement for `batch()`: the SQL, and the values bound into it. */
+export type Statement = { sql: string; params?: Param[] };
+
 export interface Db {
   driver: "d1" | "sqlite";
   all<T = Row>(sql: string, params?: Param[]): Promise<T[]>;
   first<T = Row>(sql: string, params?: Param[]): Promise<T | null>;
   run(sql: string, params?: Param[]): Promise<void>;
+  /**
+   * Runs several read statements and returns their result sets in order.
+   *
+   * On D1 every single statement is an HTTP round trip, so a page with twelve
+   * separate queries pays twelve times for latency that does not depend on how
+   * much work the query does. `batch()` sends them in one request, which is one
+   * round trip for the whole page. The local SQLite driver has no network at
+   * all, so it simply runs them in order and returns the same shape.
+   */
+  batch<T = Row>(statements: Statement[]): Promise<T[][]>;
 }
 
-type D1Prepared = {
-  bind: (...params: Param[]) => {
-    all: () => Promise<{ results?: unknown[] }>;
-    first: () => Promise<unknown>;
-    run: () => Promise<unknown>;
-  };
+type D1Statement = {
+  all: () => Promise<{ results?: unknown[] }>;
+  first: () => Promise<unknown>;
+  run: () => Promise<unknown>;
 };
 
-type D1Binding = { prepare: (sql: string) => D1Prepared };
+type D1Prepared = { bind: (...params: Param[]) => D1Statement };
+
+type D1Binding = {
+  prepare: (sql: string) => D1Prepared;
+  batch?: (statements: D1Statement[]) => Promise<{ results?: unknown[] }[]>;
+};
 
 /** Cloudflare exposes bindings through a global context injected by the runtime. */
 function findD1Binding(): D1Binding | null {
@@ -60,6 +76,21 @@ function createD1Adapter(binding: D1Binding): Db {
     async run(sql: string, params: Param[] = []) {
       await binding.prepare(sql).bind(...params).run();
     },
+    async batch<T>(statements: Statement[]) {
+      if (statements.length === 0) return [];
+      const prepared = statements.map((entry) => binding.prepare(entry.sql).bind(...(entry.params ?? [])));
+      // `batch` is on every real D1 binding; the fallback keeps the adapter
+      // working on a runtime that only has `prepare`.
+      if (typeof binding.batch === "function") {
+        const results = await binding.batch(prepared);
+        return results.map((result) => (result?.results ?? []) as T[]);
+      }
+      const sequential: T[][] = [];
+      for (const statement of prepared) {
+        sequential.push(((await statement.all()).results ?? []) as T[]);
+      }
+      return sequential;
+    },
   };
 }
 
@@ -83,6 +114,11 @@ function createSqliteAdapter(handle: SqliteHandle): Db {
     },
     async run(sql: string, params: Param[] = []) {
       handle.prepare(sql).run(...params);
+    },
+    async batch<T>(statements: Statement[]) {
+      return statements.map(
+        (entry) => handle.prepare(entry.sql).all(...(entry.params ?? [])) as T[],
+      );
     },
   };
 }
