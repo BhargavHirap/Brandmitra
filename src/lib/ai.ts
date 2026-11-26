@@ -53,6 +53,27 @@ export function aiModelName(): string {
 }
 
 /**
+ * The model tried when the first one will not answer.
+ *
+ * Google's newest flash models answer `503 This model is currently
+ * experiencing high demand` often enough that an owner pressing a button can
+ * hit one. Nothing is wrong with the request, so trying a second model costs
+ * one call and turns a dead button back into a result. The default is the older
+ * flash-lite, which stayed up while 3.5-3.8 were refusing calls on 26 Nov 2026.
+ */
+export function aiFallbackModelName(): string {
+  return process.env.GEMINI_MODEL_FALLBACK?.trim() || "gemini-3.1-flash-lite";
+}
+
+/** Statuses that mean "try again", not "this request is wrong". */
+const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
+
+/** Whole call, every attempt included, so a swamped provider cannot hang a page. */
+const TOTAL_BUDGET_MS = 20_000;
+/** Below this there is no point starting another attempt. */
+const MIN_ATTEMPT_MS = 4_000;
+
+/**
  * Language that would put a price (or a price promise) into copy.
  * A description is shown next to the real price on the storefront, so the model
  * must never repeat, invent or contradict it.
@@ -150,6 +171,11 @@ export type GeminiOptions = {
  * The only place this app talks to an AI provider. Exported so the read-only
  * business agent (`src/lib/agent.ts`) reuses the same timeout, key handling and
  * error vocabulary instead of copying them.
+ *
+ * Resilience lives here, once: a provider that is briefly swamped must not turn
+ * a button into "The AI service refused the request". The call gets one more
+ * attempt — on the fallback model when one is configured — inside a single
+ * 20-second budget shared by every attempt.
  */
 export async function callGeminiText(
   system: string,
@@ -160,14 +186,7 @@ export async function callGeminiText(
   if (!key) return { ok: false, error: "not_configured" };
 
   const base = (process.env.GEMINI_API_BASE?.trim() || "https://generativelanguage.googleapis.com/v1beta").replace(/\/$/, "");
-  const model = aiModelName();
-
-  let response: Response;
-  try {
-    response = await fetch(`${base}/models/${encodeURIComponent(model)}:generateContent`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
+  const body = JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
         contents: [
           {
@@ -193,22 +212,74 @@ export async function callGeminiText(
           ...(options.json ? { responseMimeType: "application/json" } : {}),
           ...(options.schema ? { responseSchema: options.schema } : {}),
         },
-      }),
-      signal: AbortSignal.timeout(20_000),
+      });
+
+  const deadline = Date.now() + TOTAL_BUDGET_MS;
+  const models = attemptModels();
+  let last: { ok: false; error: AiError; retryable: boolean } = {
+    ok: false,
+    error: "provider",
+    retryable: false,
+  };
+
+  for (let index = 0; index < models.length; index += 1) {
+    const remaining = deadline - Date.now();
+    if (remaining < MIN_ATTEMPT_MS) break;
+
+    // Split what is left evenly, so a hung first model still leaves room for the second.
+    const timeoutMs = Math.max(MIN_ATTEMPT_MS, Math.floor(remaining / (models.length - index)));
+    const result = await sendOnce(base, models[index], key, body, timeoutMs);
+    if (result.ok) return { ok: true, text: result.text };
+
+    // 429 is this key's own quota, not the model being down: another call cannot help.
+    if (result.error === "rate_limited") return { ok: false, error: "rate_limited" };
+
+    last = result;
+    if (!result.retryable) break;
+  }
+
+  return { ok: false, error: last.error };
+}
+
+type SendResult = { ok: true; text: string } | { ok: false; error: AiError; retryable: boolean };
+
+/** One request to one model. It never retries by itself. */
+async function sendOnce(
+  base: string,
+  model: string,
+  key: string,
+  body: string,
+  timeoutMs: number,
+): Promise<SendResult> {
+  let response: Response;
+  try {
+    response = await fetch(`${base}/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": key },
+      body,
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
     const name = (error as { name?: string })?.name;
-    return { ok: false, error: name === "TimeoutError" || name === "AbortError" ? "timeout" : "provider" };
+    // A model that hangs is as unusable as one that refuses, so the next attempt may run.
+    if (name === "TimeoutError" || name === "AbortError") {
+      return { ok: false, error: "timeout", retryable: true };
+    }
+    return { ok: false, error: "provider", retryable: true };
   }
 
-  if (response.status === 429) return { ok: false, error: "rate_limited" };
-  if (!response.ok) return { ok: false, error: "provider" };
+  if (response.status === 429) return { ok: false, error: "rate_limited", retryable: false };
+  if (!response.ok) {
+    // Read the error out so the connection is not left dangling before a retry.
+    await response.text().catch(() => "");
+    return { ok: false, error: "provider", retryable: RETRYABLE_STATUS.has(response.status) };
+  }
 
   let data: GeminiResponse;
   try {
     data = (await response.json()) as GeminiResponse;
   } catch {
-    return { ok: false, error: "provider" };
+    return { ok: false, error: "provider", retryable: false };
   }
 
   const parts = data.candidates?.[0]?.content?.parts ?? [];
@@ -217,8 +288,21 @@ export async function callGeminiText(
     .join("")
     .trim();
 
-  if (!text) return { ok: false, error: "empty" };
+  if (!text) return { ok: false, error: "empty", retryable: false };
   return { ok: true, text };
+}
+
+/**
+ * At most two attempts: the configured model, then a different one.
+ *
+ * When no separate fallback is configured there is still a single retry on the
+ * same model — a 503 spike is often over in a second, and one repeat costs less
+ * than showing the owner an error they can do nothing about.
+ */
+function attemptModels(): string[] {
+  const primary = aiModelName();
+  const fallback = aiFallbackModelName();
+  return fallback && fallback !== primary ? [primary, fallback] : [primary, primary];
 }
 
 /** Generate copy. Returns text only — never a price, never a database write. */
