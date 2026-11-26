@@ -1,4 +1,6 @@
-import type { Db } from "@/lib/db";
+// Type-only on purpose: this file is also loaded straight by `node --test`,
+// where the `@/` alias does not resolve, so it must import nothing at runtime.
+import type { Db, Row, Statement } from "@/lib/db";
 
 /**
  * AI COPY — one small, server-only module.
@@ -429,36 +431,60 @@ export async function readMenuFromImage(image: {
 /* Credit meter                                                        */
 /* ------------------------------------------------------------------ */
 
+export type AiUsage = {
+  used: number;
+  limit: number;
+  planName: string;
+  monthLabel: string;
+};
+
 /**
+ * The two statements behind the credit meter, plus the way to read their rows.
+ *
+ * The front desk runs the meter inside the same batch as the rest of its panels,
+ * so it costs no extra round trip. The month is worked out once here so the
+ * cutoff and the printed month label always describe the same instant.
+ *
  * One `ai.generated` row in `audit_logs` per successful generation doubles as the
  * usage meter. No extra table, no drifting counter: the audit trail and the bill
  * are the same rows.
  */
-export async function getAiUsage(
-  db: Db,
+export function aiUsageQuery(
   businessId: string,
   planId: string,
-): Promise<{ used: number; limit: number; planName: string; monthLabel: string }> {
+): {
+  statements: Statement[];
+  fromRows: (planRows: Row[] | undefined, countRows: Row[] | undefined) => AiUsage;
+} {
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
   const monthLabel = new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric", timeZone: "UTC" }).format(now);
 
-  const [plan, count] = await Promise.all([
-    db.first<{ name: string; ai_credits: number }>(
-      "SELECT name, ai_credits FROM plans WHERE id = ?",
-      [planId],
-    ),
-    db.first<{ n: number }>(
-      `SELECT COUNT(*) AS n FROM audit_logs
-        WHERE business_id = ? AND action = 'ai.generated' AND created_at >= ?`,
-      [businessId, monthStart],
-    ),
-  ]);
-
   return {
-    used: Number(count?.n ?? 0),
-    limit: Number(plan?.ai_credits ?? 0),
-    planName: plan?.name ?? "Free",
-    monthLabel,
+    statements: [
+      { sql: "SELECT name, ai_credits FROM plans WHERE id = ?", params: [planId] },
+      {
+        sql: `SELECT COUNT(*) AS n FROM audit_logs
+               WHERE business_id = ? AND action = 'ai.generated' AND created_at >= ?`,
+        params: [businessId, monthStart],
+      },
+    ],
+    fromRows(planRows, countRows) {
+      const plan = planRows?.[0] as { name: string; ai_credits: number } | undefined;
+      const count = countRows?.[0] as { n: number } | undefined;
+      return {
+        used: Number(count?.n ?? 0),
+        limit: Number(plan?.ai_credits ?? 0),
+        planName: plan?.name ?? "Free",
+        monthLabel,
+      };
+    },
   };
+}
+
+/** The meter on its own, for callers that are not already running a batch. */
+export async function getAiUsage(db: Db, businessId: string, planId: string): Promise<AiUsage> {
+  const query = aiUsageQuery(businessId, planId);
+  const rows = await db.batch(query.statements);
+  return query.fromRows(rows[0], rows[1]);
 }

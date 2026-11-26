@@ -11,9 +11,9 @@ import {
 } from "@/app/actions/reception";
 import { DeskScript } from "@/components/desk-script";
 import { EmptyState, PageHeader, Panel, Stat } from "@/components/ui";
-import { getAiUsage, isAiConfigured } from "@/lib/ai";
+import { aiUsageQuery, isAiConfigured } from "@/lib/ai";
 import { requireBusiness } from "@/lib/business";
-import { getDb } from "@/lib/db";
+import { firstRow, getDb, rowsOf, type Statement } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 import {
   addDaysKey,
@@ -40,9 +40,12 @@ import {
   flushMessages,
   MESSAGE_KIND_LABEL,
   MESSAGE_STATUS_LABEL,
-  readMessagingSettings,
-  recentMessages,
+  messagingSettingsFromRow,
+  messagingSettingsStatement,
+  recentMessagesStatement,
   whatsAppStatus,
+  type DeskMessageRow,
+  type MessagingSettings,
 } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
@@ -126,7 +129,19 @@ export default async function FrontDeskPage({
   const language = (MESSAGE_LANGUAGES.find((item) => item.id === params.lang)?.id ??
     "hinglish") as MessageLanguage;
 
-  const settingsRow = await db.first<{
+  // The desk's own hours and the owner's sending choice, in one round trip.
+  // Both are read before anything else because auto-send (below) depends on them.
+  const [settingsRows, messagingRows] = await db.batch([
+    {
+      sql: `SELECT greeting, languages, opens_at, closes_at, closed_days, slot_minutes,
+                   escalation_phone, followup_hours
+              FROM desk_settings WHERE business_id = ?`,
+      params: [business.id],
+    },
+    messagingSettingsStatement(business.id),
+  ]);
+
+  const settingsRow = firstRow<{
     greeting: string;
     languages: string;
     opens_at: string;
@@ -135,12 +150,7 @@ export default async function FrontDeskPage({
     slot_minutes: number;
     escalation_phone: string;
     followup_hours: number;
-  }>(
-    `SELECT greeting, languages, opens_at, closes_at, closed_days, slot_minutes,
-            escalation_phone, followup_hours
-       FROM desk_settings WHERE business_id = ?`,
-    [business.id],
-  );
+  }>(settingsRows);
 
   const settings = {
     greeting: settingsRow?.greeting || desk.greeting.replaceAll("{business}", business.name),
@@ -155,7 +165,7 @@ export default async function FrontDeskPage({
 
   // Automatic WhatsApp: the owner's choice, plus whether Meta can actually take
   // a message. `waStatus.ready` is the source of every "connected" badge below.
-  const messaging = await readMessagingSettings(db, business.id);
+  const messaging = messagingSettingsFromRow(firstRow<MessagingSettings>(messagingRows));
   const waStatus = whatsAppStatus();
   const autoSend = messaging.auto_send === 1 && waStatus.ready;
 
@@ -176,62 +186,88 @@ export default async function FrontDeskPage({
   const tomorrowStart = istIso(tomorrowKey, "00:00");
   const yesterdayStart = istIso(yesterdayKey, "00:00");
 
-  const [appointments, todayCalls, yesterdayCalls, yesterdayBookings, recentCalls, followUps, recalls, profile, aiUsage, messages] =
-    await Promise.all([
-      db.all<DeskAppointmentRow>(
-        `SELECT id, customer_name, phone, service, starts_at, status, source, notes, value_inr, created_at
-           FROM desk_appointments
-          WHERE business_id = ? AND status = 'booked' AND starts_at >= ?
-          ORDER BY starts_at ASC LIMIT 50`,
-        [business.id, todayStart],
-      ),
-      db.all<{ outcome: string; value_inr: number }>(
-        `SELECT outcome, value_inr FROM desk_calls
-          WHERE business_id = ? AND created_at >= ? AND created_at < ?`,
-        [business.id, todayStart, tomorrowStart],
-      ),
-      db.all<{ outcome: string; value_inr: number }>(
-        `SELECT outcome, value_inr FROM desk_calls
-          WHERE business_id = ? AND created_at >= ? AND created_at < ?`,
-        [business.id, yesterdayStart, todayStart],
-      ),
-      db.all<{ value_inr: number }>(
-        `SELECT value_inr FROM desk_appointments
-          WHERE business_id = ? AND created_at >= ? AND created_at < ?`,
-        [business.id, yesterdayStart, todayStart],
-      ),
-      db.all<DeskCallRow>(
-        `SELECT id, customer_name, phone, outcome, language, notes, value_inr, follow_up_at,
-                created_at, appointment_id
-           FROM desk_calls
-          WHERE business_id = ?
-          ORDER BY created_at DESC LIMIT 12`,
-        [business.id],
-      ),
-      db.all<DeskCallRow>(
-        `SELECT id, customer_name, phone, outcome, language, notes, value_inr, follow_up_at,
-                created_at, appointment_id
-           FROM desk_calls
-          WHERE business_id = ? AND outcome = 'followup' AND follow_up_at IS NOT NULL
-          ORDER BY follow_up_at ASC LIMIT 8`,
-        [business.id],
-      ),
-      db.all<{ phone: string; customer_name: string; last_visit: string }>(
-        `SELECT phone, MAX(customer_name) AS customer_name, MAX(starts_at) AS last_visit
-           FROM desk_appointments
-          WHERE business_id = ? AND phone <> ''
-          GROUP BY phone
-         HAVING MAX(starts_at) < ?
-          ORDER BY last_visit DESC LIMIT 8`,
-        [business.id, istIso(addDaysKey(todayKey, -45), "00:00")],
-      ),
-      db.first<{ phone: string; whatsapp: string; address: string }>(
-        "SELECT phone, whatsapp, address FROM business_profiles WHERE business_id = ?",
-        [business.id],
-      ),
-      getAiUsage(db, business.id, planId),
-      recentMessages(db, business.id, 8),
-    ]);
+  // Everything the page draws, in one batch. These reads used to be separate
+  // round trips to D1, and each one pays the same latency however small the
+  // query is, so they now travel together and come back as one response.
+  const aiQuery = aiUsageQuery(business.id, planId);
+  const statements: Statement[] = [
+    // 0 — the open slots in the next few days
+    {
+      sql: `SELECT id, customer_name, phone, service, starts_at, status, source, notes, value_inr, created_at
+              FROM desk_appointments
+             WHERE business_id = ? AND status = 'booked' AND starts_at >= ?
+             ORDER BY starts_at ASC LIMIT 50`,
+      params: [business.id, todayStart],
+    },
+    // 1 — today's calls, for the counters at the top
+    {
+      sql: `SELECT outcome, value_inr FROM desk_calls
+             WHERE business_id = ? AND created_at >= ? AND created_at < ?`,
+      params: [business.id, todayStart, tomorrowStart],
+    },
+    // 2 — yesterday's calls, for the morning report
+    {
+      sql: `SELECT outcome, value_inr FROM desk_calls
+             WHERE business_id = ? AND created_at >= ? AND created_at < ?`,
+      params: [business.id, yesterdayStart, todayStart],
+    },
+    // 3 — yesterday's bookings, for the value on the book
+    {
+      sql: `SELECT value_inr FROM desk_appointments
+             WHERE business_id = ? AND created_at >= ? AND created_at < ?`,
+      params: [business.id, yesterdayStart, todayStart],
+    },
+    // 4 — the call log
+    {
+      sql: `SELECT id, customer_name, phone, outcome, language, notes, value_inr, follow_up_at,
+                   created_at, appointment_id
+              FROM desk_calls
+             WHERE business_id = ?
+             ORDER BY created_at DESC LIMIT 12`,
+      params: [business.id],
+    },
+    // 5 — call-backs that have come due
+    {
+      sql: `SELECT id, customer_name, phone, outcome, language, notes, value_inr, follow_up_at,
+                   created_at, appointment_id
+              FROM desk_calls
+             WHERE business_id = ? AND outcome = 'followup' AND follow_up_at IS NOT NULL
+             ORDER BY follow_up_at ASC LIMIT 8`,
+      params: [business.id],
+    },
+    // 6 — the recall list: no visit in 45 days
+    {
+      sql: `SELECT phone, MAX(customer_name) AS customer_name, MAX(starts_at) AS last_visit
+              FROM desk_appointments
+             WHERE business_id = ? AND phone <> ''
+             GROUP BY phone
+            HAVING MAX(starts_at) < ?
+             ORDER BY last_visit DESC LIMIT 8`,
+      params: [business.id, istIso(addDaysKey(todayKey, -45), "00:00")],
+    },
+    // 7 — the address the confirmation quotes
+    {
+      sql: "SELECT phone, whatsapp, address FROM business_profiles WHERE business_id = ?",
+      params: [business.id],
+    },
+    // 8, 9 — the AI credit meter: the plan row, then this month's count
+    ...aiQuery.statements,
+    // 10 — the outbox, read after any flush above so the statuses are the real ones
+    recentMessagesStatement(business.id, 8),
+  ];
+
+  const rows = await db.batch(statements);
+
+  const appointments = rowsOf<DeskAppointmentRow>(rows[0]);
+  const todayCalls = rowsOf<{ outcome: string; value_inr: number }>(rows[1]);
+  const yesterdayCalls = rowsOf<{ outcome: string; value_inr: number }>(rows[2]);
+  const yesterdayBookings = rowsOf<{ value_inr: number }>(rows[3]);
+  const recentCalls = rowsOf<DeskCallRow>(rows[4]);
+  const followUps = rowsOf<DeskCallRow>(rows[5]);
+  const recalls = rowsOf<{ phone: string; customer_name: string; last_visit: string }>(rows[6]);
+  const profile = firstRow<{ phone: string; whatsapp: string; address: string }>(rows[7]);
+  const aiUsage = aiQuery.fromRows(rows[8], rows[9]);
+  const messages = rowsOf<DeskMessageRow>(rows[10]);
 
   const bookedSlots = new Set(appointments.map((row) => row.starts_at));
   const todayAppointments = appointments.filter((row) => istDateKey(new Date(row.starts_at)) === todayKey);

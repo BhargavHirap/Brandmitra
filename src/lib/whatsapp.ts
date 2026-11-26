@@ -1,5 +1,5 @@
 import { logAudit } from "@/lib/business";
-import { getDb, type Db } from "@/lib/db";
+import { getDb, type Db, type Statement } from "@/lib/db";
 import {
   confirmationText,
   formatSlotRelative,
@@ -203,18 +203,28 @@ export type MessagingSettings = {
   display_number: string;
 };
 
-export async function readMessagingSettings(db: Db, businessId: string): Promise<MessagingSettings> {
-  const row = await db.first<MessagingSettings>(
-    `SELECT auto_send, reminder_hours_before, phone_number_id, display_number
-       FROM desk_messaging WHERE business_id = ?`,
-    [businessId],
-  );
+const MESSAGING_SETTINGS_SQL = `SELECT auto_send, reminder_hours_before, phone_number_id, display_number
+                                   FROM desk_messaging WHERE business_id = ?`;
+
+/** The sending choice as a batch entry, so a page can read it with its other rows. */
+export function messagingSettingsStatement(businessId: string): Statement {
+  return { sql: MESSAGING_SETTINGS_SQL, params: [businessId] };
+}
+
+/** Turns the row (or its absence) into the settings the screen and sender use. */
+export function messagingSettingsFromRow(
+  row: Partial<MessagingSettings> | null | undefined,
+): MessagingSettings {
   return {
     auto_send: Number(row?.auto_send) || 0,
     reminder_hours_before: Math.max(1, Math.min(72, Number(row?.reminder_hours_before) || 24)),
     phone_number_id: row?.phone_number_id ?? "",
     display_number: row?.display_number ?? "",
   };
+}
+
+export async function readMessagingSettings(db: Db, businessId: string): Promise<MessagingSettings> {
+  return messagingSettingsFromRow(await db.first<MessagingSettings>(MESSAGING_SETTINGS_SQL, [businessId]));
 }
 
 /** E.164 digits, or "" when the number cannot be messaged. */
@@ -470,16 +480,22 @@ export async function flushMessages(options: {
   return result;
 }
 
+/** The last few messages as a batch entry, for the desk screen. */
+export function recentMessagesStatement(businessId: string, limit = 8): Statement {
+  return {
+    sql: `SELECT id, business_id, appointment_id, kind, to_phone, body, language, params, send_at,
+                 status, attempts, provider_id, error, created_at, sent_at
+            FROM desk_messages
+           WHERE business_id = ?
+           ORDER BY created_at DESC LIMIT ${Math.max(1, Math.min(30, limit))}`,
+    params: [businessId],
+  };
+}
+
 /** The last few messages with their real status, for the desk screen. */
 export async function recentMessages(db: Db, businessId: string, limit = 8): Promise<DeskMessageRow[]> {
-  return db.all<DeskMessageRow>(
-    `SELECT id, business_id, appointment_id, kind, to_phone, body, language, params, send_at,
-            status, attempts, provider_id, error, created_at, sent_at
-       FROM desk_messages
-      WHERE business_id = ?
-      ORDER BY created_at DESC LIMIT ${Math.max(1, Math.min(30, limit))}`,
-    [businessId],
-  );
+  const statement = recentMessagesStatement(businessId, limit);
+  return db.all<DeskMessageRow>(statement.sql, statement.params ?? []);
 }
 
 export const MESSAGE_STATUS_LABEL: Record<string, string> = {
