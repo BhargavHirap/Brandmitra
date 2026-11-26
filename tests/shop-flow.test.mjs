@@ -17,7 +17,7 @@
  * otherwise starts its own on port 3325. Test rows are named `e2e-...` and are
  * deleted at the end, including if a step fails.
  */
-import test from "node:test";
+import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -225,8 +225,23 @@ function purge() {
 /* The test                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * One server for the whole file, started outside every test's own clock.
+ *
+ * Starting `next dev` and compiling the first routes costs more than a test's
+ * timeout on a cold machine, so when every test called ensureServer() itself the
+ * first test failed at 240s before it had done any work. The server now starts
+ * once, before the tests, and is stopped after the last one.
+ */
+let server;
+before(async () => {
+  server = await ensureServer();
+});
+after(async () => {
+  await server?.stop();
+});
+
 test("a new shop signs up and uses the stock, staff and settings actions", { timeout: 240_000 }, async () => {
-  const server = await ensureServer();
   const owner = createApi(server.base);
 
   try {
@@ -415,13 +430,11 @@ test("a new shop signs up and uses the stock, staff and settings actions", { tim
         db.close();
         db = null; // let the next test reopen the same file
       }
-      await server.stop();
     }
   }
 });
 
 test("a salon is shown salon words, not a restaurant menu", { timeout: 240_000 }, async () => {
-  const server = await ensureServer();
   const owner = createApi(server.base);
   const email = `e2e-salon-${stamp}@example.com`;
   const shop = `E2E Salon ${stamp}`;
@@ -501,7 +514,6 @@ test("a salon is shown salon words, not a restaurant menu", { timeout: 240_000 }
 });
 
 test("a clinic front desk books a slot, chases a callback and closes it", { timeout: 240_000 }, async () => {
-  const server = await ensureServer();
   const owner = createApi(server.base);
   const email = `e2e-clinic-${stamp}@example.com`;
   const shop = `E2E Clinic ${stamp}`;
@@ -764,12 +776,10 @@ test("a clinic front desk books a slot, chases a callback and closes it", { time
       db.close();
       db = null;
     }
-    await server.stop();
   }
 });
 
 test("a forgotten password is reset through a one-time owner-handed link", { timeout: 240_000 }, async () => {
-  const server = await ensureServer();
   const owner = createApi(server.base);
   const email = `e2e-reset-${stamp}@example.com`;
   const oldPassword = ownerPassword;
@@ -857,6 +867,5 @@ test("a forgotten password is reset through a one-time owner-handed link", { tim
       db.close();
       db = null;
     }
-    await server.stop();
   }
 });
