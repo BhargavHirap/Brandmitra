@@ -33,6 +33,11 @@ next-env.d.ts
 /.open-next/
 /.wrangler/
 
+# local secret files — never commit, never print
+/.secrets/
+gemini-key.txt
+*-key.txt
+
 # deploy configs generated from deploy/wrangler.template.json (hold account ids)
 wrangler.deploy.json
 wrangler.jsonc
