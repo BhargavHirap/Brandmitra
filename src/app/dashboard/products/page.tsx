@@ -3,7 +3,7 @@ import { toggleProductAction } from "@/app/actions/products";
 import { EmptyState, PageHeader, Panel } from "@/components/ui";
 import { productLimitLabel, requireBusiness } from "@/lib/business";
 import { workspaceFor } from "@/lib/workspace";
-import { getDb } from "@/lib/db";
+import { firstRow, getDb, rowsOf } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -60,38 +60,47 @@ export default async function ProductsPage({
     bind.push(categoryFilter);
   }
 
-  const [products, categories, totalRow, activeRow, plan] = await Promise.all([
-    db.all<ListRow>(
-      `SELECT p.id, p.name, p.price, p.compare_at_price, p.image_url,
-              p.is_active, p.is_available, c.name AS category_name,
-              (SELECT COUNT(*) FROM customization_groups g WHERE g.product_id = p.id) AS option_groups
-         FROM products p
-         LEFT JOIN product_categories c ON c.id = p.category_id
-        WHERE ${where.join(" AND ")}
-        ORDER BY COALESCE(c.sort_order, 9999) ASC, p.sort_order ASC, p.created_at ASC
-        LIMIT 300`,
-      bind,
-    ),
-    db.all<CategoryRow>(
-      `SELECT c.id, c.name,
-              (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id) AS n
-         FROM product_categories c
-        WHERE c.business_id = ?
-        ORDER BY c.sort_order ASC, c.name ASC`,
-      [business.id],
-    ),
-    db.first<{ n: number }>("SELECT COUNT(*) AS n FROM products WHERE business_id = ?", [
-      business.id,
-    ]),
-    db.first<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM products WHERE business_id = ? AND is_active = 1",
-      [business.id],
-    ),
-    db.first<{ product_limit: number; name: string }>(
-      "SELECT product_limit, name FROM plans WHERE id = ?",
-      [planId],
-    ),
+  // Five statements, one round trip: the list, its filters and the counts are
+  // all read at once instead of costing five separate D1 requests.
+  const rows = await db.batch([
+    {
+      sql: `SELECT p.id, p.name, p.price, p.compare_at_price, p.image_url,
+                   p.is_active, p.is_available, c.name AS category_name,
+                   (SELECT COUNT(*) FROM customization_groups g WHERE g.product_id = p.id) AS option_groups
+              FROM products p
+              LEFT JOIN product_categories c ON c.id = p.category_id
+             WHERE ${where.join(" AND ")}
+             ORDER BY COALESCE(c.sort_order, 9999) ASC, p.sort_order ASC, p.created_at ASC
+             LIMIT 300`,
+      params: bind,
+    },
+    {
+      sql: `SELECT c.id, c.name,
+                   (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id) AS n
+              FROM product_categories c
+             WHERE c.business_id = ?
+             ORDER BY c.sort_order ASC, c.name ASC`,
+      params: [business.id],
+    },
+    {
+      sql: "SELECT COUNT(*) AS n FROM products WHERE business_id = ?",
+      params: [business.id],
+    },
+    {
+      sql: "SELECT COUNT(*) AS n FROM products WHERE business_id = ? AND is_active = 1",
+      params: [business.id],
+    },
+    {
+      sql: "SELECT product_limit, name FROM plans WHERE id = ?",
+      params: [planId],
+    },
   ]);
+
+  const products = rowsOf<ListRow>(rows[0]);
+  const categories = rowsOf<CategoryRow>(rows[1]);
+  const totalRow = firstRow<{ n: number }>(rows[2]);
+  const activeRow = firstRow<{ n: number }>(rows[3]);
+  const plan = firstRow<{ product_limit: number; name: string }>(rows[4]);
 
   const total = Number(totalRow?.n ?? 0);
   const active = Number(activeRow?.n ?? 0);

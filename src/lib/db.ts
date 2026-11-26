@@ -193,6 +193,16 @@ async function schemaReady(db: Db): Promise<boolean> {
 
 let cached: Promise<Db> | null = null;
 
+/** The single row a batched aggregate returns, typed. */
+export function firstRow<T>(rows: Row[] | undefined): T | null {
+  return (rows?.[0] as unknown as T) ?? null;
+}
+
+/** The rows a batched list query returns, typed. */
+export function rowsOf<T>(rows: Row[] | undefined): T[] {
+  return (rows ?? []) as unknown as T[];
+}
+
 async function connect(): Promise<Db> {
   const d1 = findD1Binding();
   const db: Db = d1 ? createD1Adapter(d1) : createSqliteAdapter(openLocalSqlite());

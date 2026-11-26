@@ -1,6 +1,6 @@
 import { EmptyState, PageHeader, Panel, Stat } from "@/components/ui";
 import { requireBusiness } from "@/lib/business";
-import { getDb } from "@/lib/db";
+import { firstRow, getDb, rowsOf } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 import { statusLabel } from "@/lib/orders";
 
@@ -28,72 +28,89 @@ export default async function AnalyticsPage() {
   const start7 = new Date(startOfToday.getTime() - 6 * DAY_MS);
   const start30 = new Date(startOfToday.getTime() - 29 * DAY_MS);
 
-  const [allTime, d7, d30, today, seriesRows, topProducts, channels, statusRows, repeat, newCustomers] =
-    await Promise.all([
-      db.first<{ orders: number; revenue: number; avg: number }>(
-        `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue, COALESCE(AVG(total), 0) AS avg
-           FROM orders WHERE business_id = ? AND ${VALID}`,
-        [business.id],
-      ),
-      db.first<{ orders: number; revenue: number }>(
-        `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
-           FROM orders WHERE business_id = ? AND created_at >= ? AND ${VALID}`,
-        [business.id, start7.toISOString()],
-      ),
-      db.first<{ orders: number; revenue: number; avg: number }>(
-        `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue, COALESCE(AVG(total), 0) AS avg
-           FROM orders WHERE business_id = ? AND created_at >= ? AND ${VALID}`,
-        [business.id, start30.toISOString()],
-      ),
-      db.first<{ orders: number; revenue: number }>(
-        `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
-           FROM orders WHERE business_id = ? AND created_at >= ? AND ${VALID}`,
-        [business.id, startOfToday.toISOString()],
-      ),
-      db.all<{ day: string; orders: number; revenue: number }>(
-        `SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS orders,
-                COALESCE(SUM(total), 0) AS revenue
-           FROM orders
-          WHERE business_id = ? AND created_at >= ? AND ${VALID}
-          GROUP BY day`,
-        [business.id, start30.toISOString()],
-      ),
-      db.all<{ name: string; qty: number; revenue: number }>(
-        `SELECT i.name_snapshot AS name, SUM(i.quantity) AS qty, SUM(i.line_total) AS revenue
-           FROM order_items i
-           JOIN orders o ON o.id = i.order_id AND o.business_id = i.business_id
-          WHERE i.business_id = ? AND o.created_at >= ?
-            AND o.status NOT IN ('cancelled', 'rejected')
-          GROUP BY i.name_snapshot
-          ORDER BY revenue DESC
-          LIMIT 8`,
-        [business.id, start30.toISOString()],
-      ),
-      db.all<{ channel: string; orders: number; revenue: number }>(
-        `SELECT channel, COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
-           FROM orders
-          WHERE business_id = ? AND created_at >= ? AND ${VALID}
-          GROUP BY channel
-          ORDER BY revenue DESC`,
-        [business.id, start30.toISOString()],
-      ),
-      db.all<{ status: string; n: number }>(
-        "SELECT status, COUNT(*) AS n FROM orders WHERE business_id = ? GROUP BY status",
-        [business.id],
-      ),
-      db.first<{ n: number }>(
-        `SELECT COUNT(*) AS n FROM (
-           SELECT customer_id FROM orders
-            WHERE business_id = ? AND customer_id IS NOT NULL AND ${VALID}
-            GROUP BY customer_id HAVING COUNT(*) > 1
-         )`,
-        [business.id],
-      ),
-      db.first<{ n: number }>(
-        "SELECT COUNT(*) AS n FROM customers WHERE business_id = ? AND created_at >= ?",
-        [business.id, startOfMonth.toISOString()],
-      ),
-    ]);
+  /*
+   * One round trip for the whole report.
+   *
+   * These ten aggregates used to be ten separate statements, which on D1 means
+   * ten separate HTTP requests even though each one finishes in microseconds.
+   * They all read the same tables for the same business, so they travel together.
+   */
+  const report = await db.batch([
+    {
+      sql: `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue, COALESCE(AVG(total), 0) AS avg
+              FROM orders WHERE business_id = ? AND ${VALID}`,
+      params: [business.id],
+    },
+    {
+      sql: `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
+              FROM orders WHERE business_id = ? AND created_at >= ? AND ${VALID}`,
+      params: [business.id, start7.toISOString()],
+    },
+    {
+      sql: `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue, COALESCE(AVG(total), 0) AS avg
+              FROM orders WHERE business_id = ? AND created_at >= ? AND ${VALID}`,
+      params: [business.id, start30.toISOString()],
+    },
+    {
+      sql: `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
+              FROM orders WHERE business_id = ? AND created_at >= ? AND ${VALID}`,
+      params: [business.id, startOfToday.toISOString()],
+    },
+    {
+      sql: `SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS orders,
+                   COALESCE(SUM(total), 0) AS revenue
+              FROM orders
+             WHERE business_id = ? AND created_at >= ? AND ${VALID}
+             GROUP BY day`,
+      params: [business.id, start30.toISOString()],
+    },
+    {
+      sql: `SELECT i.name_snapshot AS name, SUM(i.quantity) AS qty, SUM(i.line_total) AS revenue
+              FROM order_items i
+              JOIN orders o ON o.id = i.order_id AND o.business_id = i.business_id
+             WHERE i.business_id = ? AND o.created_at >= ?
+               AND o.status NOT IN ('cancelled', 'rejected')
+             GROUP BY i.name_snapshot
+             ORDER BY revenue DESC
+             LIMIT 8`,
+      params: [business.id, start30.toISOString()],
+    },
+    {
+      sql: `SELECT channel, COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
+              FROM orders
+             WHERE business_id = ? AND created_at >= ? AND ${VALID}
+             GROUP BY channel
+             ORDER BY revenue DESC`,
+      params: [business.id, start30.toISOString()],
+    },
+    {
+      sql: "SELECT status, COUNT(*) AS n FROM orders WHERE business_id = ? GROUP BY status",
+      params: [business.id],
+    },
+    {
+      sql: `SELECT COUNT(*) AS n FROM (
+              SELECT customer_id FROM orders
+               WHERE business_id = ? AND customer_id IS NOT NULL AND ${VALID}
+               GROUP BY customer_id HAVING COUNT(*) > 1
+            )`,
+      params: [business.id],
+    },
+    {
+      sql: "SELECT COUNT(*) AS n FROM customers WHERE business_id = ? AND created_at >= ?",
+      params: [business.id, startOfMonth.toISOString()],
+    },
+  ]);
+
+  const allTime = firstRow<{ orders: number; revenue: number; avg: number }>(report[0]);
+  const d7 = firstRow<{ orders: number; revenue: number }>(report[1]);
+  const d30 = firstRow<{ orders: number; revenue: number; avg: number }>(report[2]);
+  const today = firstRow<{ orders: number; revenue: number }>(report[3]);
+  const seriesRows = rowsOf<{ day: string; orders: number; revenue: number }>(report[4]);
+  const topProducts = rowsOf<{ name: string; qty: number; revenue: number }>(report[5]);
+  const channels = rowsOf<{ channel: string; orders: number; revenue: number }>(report[6]);
+  const statusRows = rowsOf<{ status: string; n: number }>(report[7]);
+  const repeat = firstRow<{ n: number }>(report[8]);
+  const newCustomers = firstRow<{ n: number }>(report[9]);
 
   const byDay = new Map(seriesRows.map((row) => [row.day, row]));
   const series = Array.from({ length: 30 }, (_, index) => {

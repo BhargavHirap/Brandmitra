@@ -15,7 +15,7 @@ import { AiCopyPanel } from "@/components/ai-copy-panel";
 import { PageHeader, Panel } from "@/components/ui";
 import { getAiUsage, isAiConfigured } from "@/lib/ai";
 import { requireBusiness } from "@/lib/business";
-import { getDb } from "@/lib/db";
+import { getDb, rowsOf } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -89,26 +89,32 @@ export default async function EditProductPage({
   );
   if (!product) notFound();
 
-  const [categories, groups, options] = await Promise.all([
-    db.all<{ id: string; name: string }>(
-      "SELECT id, name FROM product_categories WHERE business_id = ? ORDER BY sort_order ASC, name ASC",
-      [business.id],
-    ),
-    db.all<GroupRow>(
-      `SELECT id, name, selection_type, is_required, min_select, max_select
-         FROM customization_groups
-        WHERE product_id = ? AND business_id = ?
-        ORDER BY sort_order ASC`,
-      [product.id, business.id],
-    ),
-    db.all<OptionRow>(
-      `SELECT id, group_id, name, price_delta, is_default, is_available
-         FROM customization_options
-        WHERE business_id = ? AND group_id IN (SELECT id FROM customization_groups WHERE product_id = ? AND business_id = ?)
-        ORDER BY is_default DESC, name ASC`,
-      [business.id, product.id, business.id],
-    ),
+  // The form's three lookups travel together, so the editor needs one D1 round
+  // trip for them instead of three.
+  const formRows = await db.batch([
+    {
+      sql: "SELECT id, name FROM product_categories WHERE business_id = ? ORDER BY sort_order ASC, name ASC",
+      params: [business.id],
+    },
+    {
+      sql: `SELECT id, name, selection_type, is_required, min_select, max_select
+              FROM customization_groups
+             WHERE product_id = ? AND business_id = ?
+             ORDER BY sort_order ASC`,
+      params: [product.id, business.id],
+    },
+    {
+      sql: `SELECT id, group_id, name, price_delta, is_default, is_available
+              FROM customization_options
+             WHERE business_id = ? AND group_id IN (SELECT id FROM customization_groups WHERE product_id = ? AND business_id = ?)
+             ORDER BY is_default DESC, name ASC`,
+      params: [business.id, product.id, business.id],
+    },
   ]);
+
+  const categories = rowsOf<{ id: string; name: string }>(formRows[0]);
+  const groups = rowsOf<GroupRow>(formRows[1]);
+  const options = rowsOf<OptionRow>(formRows[2]);
 
   const optionsByGroup = new Map<string, OptionRow[]>();
   for (const option of options) {
