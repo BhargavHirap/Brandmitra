@@ -6,10 +6,10 @@
  * hand with a throwaway stub server; this file makes those checks part of
  * `npm test`.
  *
- * Nothing here touches the real provider: GEMINI_API_BASE points at a local HTTP
- * server on an ephemeral port that answers however each test needs. The module
- * is imported directly — Node 24 strips the TypeScript types itself, so the code
- * under test is the same file the app runs.
+ * Nothing here touches the real provider: GEMINI_API_BASE points at the local
+ * stub in ./support/ai-stub.mjs. The module is imported directly — Node 24
+ * strips the TypeScript types itself, so the code under test is the same file the
+ * app runs.
  *
  * Covered:
  *   - 503 on the first model is retried on the fallback model
@@ -22,93 +22,12 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import http from "node:http";
 
 import { aiFallbackModelName, aiModelName, callGeminiText } from "../src/lib/ai.ts";
+import { answered, configured, refused, stubProvider, withEnv } from "./support/ai-stub.mjs";
 
 const PRIMARY = "test-primary-model";
 const FALLBACK = "test-fallback-model";
-
-const ENV_KEYS = ["GEMINI_API_KEY", "GEMINI_API_BASE", "GEMINI_MODEL", "GEMINI_MODEL_FALLBACK"];
-
-/** A stub provider that records every request and replies with `reply`. */
-async function stubProvider(reply) {
-  const requests = [];
-  const sockets = new Set();
-
-  const server = http.createServer(async (request, response) => {
-    let body = "";
-    for await (const chunk of request) body += chunk;
-
-    const model = decodeURIComponent(
-      (request.url ?? "").match(/\/models\/([^:]+):generateContent/)?.[1] ?? "",
-    );
-    const call = { model, apiKey: request.headers["x-goog-api-key"], body };
-    requests.push(call);
-
-    reply(call, response, requests.length - 1);
-  });
-
-  server.on("connection", (socket) => {
-    sockets.add(socket);
-    socket.on("close", () => sockets.delete(socket));
-  });
-
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const { port } = server.address();
-
-  return {
-    base: `http://127.0.0.1:${port}/v1beta`,
-    requests,
-    async close() {
-      // A hung reply leaves its socket open, which would keep close() waiting.
-      server.closeAllConnections?.();
-      for (const socket of sockets) socket.destroy();
-      await new Promise((resolve) => server.close(resolve));
-    },
-  };
-}
-
-function answered(text) {
-  return (call, response) => {
-    response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }));
-  };
-}
-
-function refused(status) {
-  return (call, response) => {
-    response.writeHead(status, { "content-type": "application/json" });
-    response.end(JSON.stringify({ error: { code: status, message: "stub" } }));
-  };
-}
-
-/** Applies env for one test and restores the previous values afterwards. */
-async function withEnv(values, run) {
-  const previous = new Map(ENV_KEYS.map((key) => [key, process.env[key]]));
-  for (const key of ENV_KEYS) {
-    if (values[key] === undefined) delete process.env[key];
-    else process.env[key] = values[key];
-  }
-  try {
-    return await run();
-  } finally {
-    for (const [key, value] of previous) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
-  }
-}
-
-function configured(base, extra = {}) {
-  return {
-    GEMINI_API_KEY: "stub-key-not-a-secret",
-    GEMINI_API_BASE: base,
-    GEMINI_MODEL: PRIMARY,
-    GEMINI_MODEL_FALLBACK: FALLBACK,
-    ...extra,
-  };
-}
 
 test("the model names come from the environment, with documented defaults", () => {
   return withEnv({ GEMINI_MODEL: undefined, GEMINI_MODEL_FALLBACK: undefined }, () => {
