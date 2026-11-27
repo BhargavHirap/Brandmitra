@@ -84,8 +84,15 @@ Deliberate limits: the same `reason` is written for "no such account" and "wrong
 password" so the log cannot be used to discover which addresses exist; no
 password, token, signature or request body is stored; and the write is wrapped in
 try/catch, so a logging failure never turns a refusal into a crash
-(`src/lib/security.ts`). Nothing in the app reads the table — it is for the owner
-to inspect with SQL when something looks wrong.
+(`src/lib/security.ts`).
+
+It is read in one place: `/dashboard/security` (`src/app/dashboard/security/page.tsx`)
+lists the last 50 events newest first, with the seven-day counts per kind. That
+page checks `users.is_platform_admin` on the server and redirects everyone else
+to `/dashboard`, and the sidebar link is only rendered for those accounts — a
+refused sign-in carries no business id, so showing it to a normal shop owner
+would hand them other people's addresses. Every value on the screen is stored
+as-is; nothing on it is editable.
 
 ### 6. Two buyers could oversell the last unit
 
@@ -159,9 +166,11 @@ Open the live site, press F12, and try these:
 7. **Read the error** — trigger a failing page and check that the screen says
    only "That screen did not load", with no query text or table names.
 8. **Watch a refused sign-in get recorded** — sign in with a wrong password,
-   then run
-   `SELECT kind, email, ip, created_at FROM security_logs ORDER BY created_at DESC LIMIT 5;`.
-   The attempt is there; the password is not.
+   then, as a founder, open `/dashboard/security`. The attempt is at the top of
+   the list with the address, IP, path and `reason: bad_credentials`. The
+   password is not there. Signed in as an ordinary shop owner, the same URL
+   redirects to `/dashboard` and the sidebar has no Security log link. With SQL:
+   `SELECT kind, email, ip, created_at FROM security_logs ORDER BY created_at DESC LIMIT 5;`
 9. **Hammer an AI button** — press Generate in the marketing studio eleven times
    in ten minutes. The eleventh says how long to wait and no credit is used. In
    the database: `SELECT key, count FROM rate_limits;`
@@ -182,3 +191,7 @@ Open the live site, press F12, and try these:
 - **No CSP beyond `frame-ancestors`.** A full `script-src` policy is the next
   step; it needs testing against the framework's inline bootstrap scripts.
 - **No automated dependency or secret scanning** in CI.
+- **The security log is a list, not an alert.** Nothing emails or notifies when
+  a burst of refused sign-ins arrives; someone has to open `/dashboard/security`
+  and notice. There is also no way to mark an event as seen, and rows are never
+  pruned automatically.

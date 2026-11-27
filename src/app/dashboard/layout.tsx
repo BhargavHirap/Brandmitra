@@ -33,7 +33,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </div>
           </div>
           <div className="mt-5 flex-1 overflow-y-auto">
-            <DashboardNav planId={planId} industry={business.industry} variant="desktop" />
+            <DashboardNav
+              planId={planId}
+              industry={business.industry}
+              variant="desktop"
+              ownerTools={user.isPlatformAdmin}
+            />
           </div>
         </aside>
 
@@ -86,7 +91,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </header>
 
           <div className="px-4 pb-20 pt-4 sm:px-6 sm:pt-5">
-            <DashboardNav planId={planId} industry={business.industry} variant="mobile" />
+            <DashboardNav
+              planId={planId}
+              industry={business.industry}
+              variant="mobile"
+              ownerTools={user.isPlatformAdmin}
+            />
             <div className="mt-4 sm:mt-6">{children}</div>
           </div>
         </div>

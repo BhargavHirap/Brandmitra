@@ -1000,3 +1000,95 @@ test("a forgotten password is reset through a one-time owner-handed link", { tim
     }
   }
 });
+
+test("the security log opens for a founder and for nobody else", { timeout: 240_000 }, async () => {
+  const owner = createApi(server.base);
+  const email = `e2e-security-${stamp}@example.com`;
+  const shop = `E2E Security ${stamp}`;
+  const probe = `e2e-probe-${stamp}@example.com`;
+  const text = (html) => html.replace(/<!--[\s\S]*?-->/g, "");
+
+  try {
+    purge();
+
+    assert.equal(
+      await owner.submit("/signup", { fullName: "E2E Security", email, password: ownerPassword }),
+      "/onboarding",
+    );
+    assert.equal(
+      await owner.submit("/onboarding", { name: shop, industry: "cafe", city: "Pune", tagline: "" }),
+      "/dashboard?welcome=1",
+    );
+
+    const ownerUser = row("SELECT id FROM users WHERE email = ?", email);
+    assert.ok(ownerUser, "signup should create the user row");
+
+    /* ---- A shop owner is redirected, and has no link to click -------- */
+    const blocked = await owner.get("/dashboard/security");
+    assert.ok(
+      blocked.res.status >= 300 && blocked.res.status < 400,
+      `a non-founder must be redirected, got ${blocked.res.status}`,
+    );
+    assert.equal(blocked.res.headers.get("location"), "/dashboard");
+
+    const dashboard = await owner.get("/dashboard");
+    assert.equal(dashboard.res.status, 200);
+    assert.ok(
+      !text(dashboard.html).includes("/dashboard/security"),
+      "the sidebar link is founder-only, not merely hidden with CSS",
+    );
+
+    /* ---- Two events, written the way the app writes them ------------ */
+    const now = new Date().toISOString();
+    const insert = database().prepare(
+      "INSERT INTO security_logs (id, kind, email, business_id, ip, path, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    insert.run(
+      crypto.randomUUID(),
+      "signin_failed",
+      probe,
+      null,
+      "203.0.113.9",
+      "/login",
+      JSON.stringify({ reason: "bad_credentials" }),
+      now,
+    );
+    insert.run(
+      crypto.randomUUID(),
+      "webhook_rejected",
+      "",
+      null,
+      "203.0.113.9",
+      "/api/razorpay/webhook",
+      JSON.stringify({ reason: "bad_signature" }),
+      now,
+    );
+
+    /* ---- A founder reads both, without a redeploy ------------------- */
+    database().prepare("UPDATE users SET is_platform_admin = 1 WHERE id = ?").run(ownerUser.id);
+
+    const page = await owner.get("/dashboard/security");
+    assert.equal(page.res.status, 200, "a founder should open the log");
+    const html = text(page.html);
+    assert.ok(html.includes("Refused sign-in"), "the sign-in event is labelled");
+    assert.ok(html.includes("Rejected webhook"), "the webhook event is labelled");
+    assert.ok(html.includes(probe), "the refused address is shown");
+    assert.ok(html.includes("203.0.113.9"), "the reported IP is shown");
+    assert.ok(html.includes("bad_signature"), "the stored reason is shown");
+    assert.ok(html.includes("/dashboard/security"), "a founder gets the sidebar link");
+  } finally {
+    try {
+      purge();
+    } finally {
+      if (existsSync(DB_FILE)) {
+        const connection = new DatabaseSync(DB_FILE);
+        connection.prepare("DELETE FROM security_logs WHERE email LIKE 'e2e-%@example.com'").run();
+        connection.close();
+      }
+      if (db) {
+        db.close();
+        db = null;
+      }
+    }
+  }
+});

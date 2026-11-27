@@ -13,9 +13,29 @@ type Item = { key: string; label: string; href: string; phase: number; ready?: b
  * wholesaler reads "SKUs · Product groups · Purchase orders · Dispatch board ·
  * Buyers". The routes underneath are the same modules for everyone.
  */
-function sectionsFor(industry: string): { group: string; items: Item[] }[] {
+function sectionsFor(industry: string, ownerTools: boolean): { group: string; items: Item[] }[] {
   const w = workspaceFor(industry);
   const desk = deskFor(industry);
+  /*
+   * Founder-only screens are added to the list, never hidden behind a CSS
+   * class: an item that is not in this array is not in the markup, and the
+   * server still refuses the page itself if somebody types the URL.
+   */
+  const businessItems: Item[] = [
+    { key: "analytics", label: "Analytics", href: "/dashboard/analytics", phase: 3, ready: true },
+    { key: "staff", label: "Staff", href: "/dashboard/staff", phase: 8, ready: true },
+    { key: "settings", label: "Settings", href: "/dashboard/settings", phase: 7, ready: true },
+    { key: "subscription", label: "Subscription", href: "/dashboard/subscription", phase: 7, ready: true },
+  ];
+  if (ownerTools) {
+    businessItems.push({
+      key: "security",
+      label: "Security log",
+      href: "/dashboard/security",
+      phase: 7,
+      ready: true,
+    });
+  }
   return [
     {
       group: "Workspace",
@@ -44,15 +64,7 @@ function sectionsFor(industry: string): { group: string; items: Item[] }[] {
         { key: "agent", label: "AI business agent", href: "/dashboard/agent", phase: 5, ready: true },
       ],
     },
-    {
-      group: "Business",
-      items: [
-        { key: "analytics", label: "Analytics", href: "/dashboard/analytics", phase: 3, ready: true },
-        { key: "staff", label: "Staff", href: "/dashboard/staff", phase: 8, ready: true },
-        { key: "settings", label: "Settings", href: "/dashboard/settings", phase: 7, ready: true },
-        { key: "subscription", label: "Subscription", href: "/dashboard/subscription", phase: 7, ready: true },
-      ],
-    },
+    { group: "Business", items: businessItems },
   ];
 }
 
@@ -60,13 +72,15 @@ export function DashboardNav({
   planId,
   industry,
   variant,
+  ownerTools = false,
 }: {
   planId: string;
   industry: string;
   variant: "desktop" | "mobile";
+  ownerTools?: boolean;
 }) {
   const pathname = usePathname();
-  const sections = sectionsFor(industry);
+  const sections = sectionsFor(industry, ownerTools);
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === href : pathname.startsWith(href);
 
