@@ -20,7 +20,14 @@ export interface Db {
   driver: "d1" | "sqlite";
   all<T = Row>(sql: string, params?: Param[]): Promise<T[]>;
   first<T = Row>(sql: string, params?: Param[]): Promise<T | null>;
-  run(sql: string, params?: Param[]): Promise<void>;
+  /**
+   * Runs a write and returns how many rows it changed.
+   *
+   * The count is what makes an atomic stock decrement possible: a conditional
+   * `UPDATE … WHERE stock_on_hand >= ?` that changed zero rows means the last
+   * unit went to somebody else.
+   */
+  run(sql: string, params?: Param[]): Promise<number>;
   /**
    * Runs several read statements and returns their result sets in order.
    *
@@ -74,7 +81,10 @@ function createD1Adapter(binding: D1Binding): Db {
       return (result ?? null) as T | null;
     },
     async run(sql: string, params: Param[] = []) {
-      await binding.prepare(sql).bind(...params).run();
+      const result = (await binding.prepare(sql).bind(...params).run()) as {
+        meta?: { changes?: number };
+      } | null;
+      return Number(result?.meta?.changes ?? 0);
     },
     async batch<T>(statements: Statement[]) {
       if (statements.length === 0) return [];
@@ -113,7 +123,8 @@ function createSqliteAdapter(handle: SqliteHandle): Db {
       return (handle.prepare(sql).get(...params) ?? null) as T | null;
     },
     async run(sql: string, params: Param[] = []) {
-      handle.prepare(sql).run(...params);
+      const result = handle.prepare(sql).run(...params) as { changes?: number | bigint } | null;
+      return Number(result?.changes ?? 0);
     },
     async batch<T>(statements: Statement[]) {
       return statements.map(

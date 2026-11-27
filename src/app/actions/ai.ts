@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai";
 import { logAudit, requireBusiness } from "@/lib/business";
 import { getDb } from "@/lib/db";
+import { AI_RATE_LIMITS, checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 
 /**
  * AI COPY ACTIONS.
@@ -52,7 +53,7 @@ export async function generateProductCopyAction(
   previous: AiCopyState,
   formData: FormData,
 ): Promise<AiCopyState> {
-  const { business, planId } = await requireBusiness();
+  const { user, business, planId } = await requireBusiness();
   const db = await getDb();
 
   const requestedKind = text(formData, "kind", 20) === "caption" ? "caption" : "description";
@@ -106,6 +107,13 @@ export async function generateProductCopyAction(
     options: options.map((option) => `${option.group_name}: ${option.option_name}`).slice(0, 20),
     existingDescription: product.description,
   };
+
+  // A burst fence, separate from the monthly credit: 20 presses in ten minutes
+  // is a loop, not an owner writing a description.
+  const burst = await checkRateLimit(AI_RATE_LIMITS.productCopy, user.id, db);
+  if (!burst.allowed) {
+    return fail(kind, credits, rateLimitMessage(burst, AI_RATE_LIMITS.productCopy.label));
+  }
 
   const result = await generateProductCopy(kind, facts);
   if (!result.ok) {

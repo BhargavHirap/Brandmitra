@@ -377,6 +377,27 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_business ON audit_logs(business_id, created_at);
 
+CREATE TABLE IF NOT EXISTS security_logs (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  email TEXT NOT NULL DEFAULT '',
+  business_id TEXT REFERENCES businesses(id) ON DELETE CASCADE,
+  ip TEXT NOT NULL DEFAULT '',
+  path TEXT NOT NULL DEFAULT '',
+  detail TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_security_logs_created ON security_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_security_logs_kind ON security_logs(kind, created_at);
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT PRIMARY KEY,
+  window_start INTEGER NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rate_limits_window ON rate_limits(window_start);
+
 CREATE TABLE IF NOT EXISTS desk_settings (
   business_id TEXT PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE,
   greeting TEXT NOT NULL DEFAULT '',

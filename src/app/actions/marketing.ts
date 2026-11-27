@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai";
 import { logAudit, requireBusiness } from "@/lib/business";
 import { getDb } from "@/lib/db";
+import { AI_RATE_LIMITS, checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import {
   CAMPAIGN_CHANNELS,
   channelInfo,
@@ -70,7 +71,7 @@ export async function generateCampaignAction(
   previous: CampaignState,
   formData: FormData,
 ): Promise<CampaignState> {
-  const { business, planId } = await requireBusiness();
+  const { user, business, planId } = await requireBusiness();
   const db = await getDb();
   const credits = await getAiUsage(db, business.id, planId);
 
@@ -138,6 +139,11 @@ export async function generateCampaignAction(
       })),
     ),
   ]);
+
+  const burst = await checkRateLimit(AI_RATE_LIMITS.campaign, user.id, db);
+  if (!burst.allowed) {
+    return fail(channel, credits, rateLimitMessage(burst, AI_RATE_LIMITS.campaign.label), brief);
+  }
 
   const draft = await generateCampaign({
     businessName: business.name,

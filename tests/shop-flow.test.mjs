@@ -181,7 +181,8 @@ function createApi(base) {
     return location;
   }
 
-  return { jar, get, submit, cookies: () => Object.values(jar.all).join("; ") };
+  // `send` is exposed so a test can post a form the page itself has hidden.
+  return { jar, get, send, submit, cookies: () => Object.values(jar.all).join("; ") };
 }
 
 /* ------------------------------------------------------------------ */
@@ -335,6 +336,136 @@ test("a new shop signs up and uses the stock, staff and settings actions", { tim
       row("SELECT is_available FROM products WHERE id = ?", productId).is_available,
       1,
       "restocking should make the product available again",
+    );
+
+    /* ---- Checkout takes stock; the last unit goes to one buyer ---- */
+    location = await owner.submit("/dashboard/inventory", { productId, quantity: "1", threshold: "1" });
+    assert.equal(location, "/dashboard/inventory?saved=1");
+
+    const slug = business.slug;
+    const buyerA = createApi(server.base);
+    const buyerB = createApi(server.base);
+
+    // Two separate browsers, each holding one unit of the same product.
+    for (const buyer of [buyerA, buyerB]) {
+      location = await buyer.submit(`/b/${slug}`, { slug, productId, quantity: "1" });
+      assert.equal(location, `/b/${slug}/cart?added=1`, "adding to the cart should land on the cart");
+    }
+
+    // Keep the checkout action id before the cart is consumed: the second
+    // buyer's page hides this form once the product is sold out, and the point
+    // of the test is that the server refuses even when the form is posted.
+    const buyerACart = await buyerA.get(`/b/${slug}/cart`);
+    const checkoutAction = findActionId(buyerACart.html, ["slug", "name", "phone"]);
+    assert.ok(checkoutAction, "the first buyer's cart should offer a checkout form");
+
+    location = await buyerA.submit(`/b/${slug}/cart`, {
+      slug,
+      name: "Buyer One",
+      phone: "9876500001",
+    });
+    assert.match(location, new RegExp(`^/b/${slug}/order/`), `the first buyer should get an order, got ${location}`);
+    assert.equal(
+      row("SELECT stock_on_hand FROM inventory WHERE product_id = ?", productId).stock_on_hand,
+      0,
+      "checkout should take the unit out of stock",
+    );
+    assert.equal(
+      row("SELECT is_available FROM products WHERE id = ?", productId).is_available,
+      0,
+      "selling the last unit should mark the product sold out",
+    );
+
+    // The second buyer's cart already shows the item as gone, and posts nothing.
+    const buyerBCart = await buyerB.get(`/b/${slug}/cart`);
+    assert.equal(
+      findActionId(buyerBCart.html, ["slug", "name", "phone"]),
+      null,
+      "a sold-out cart must not offer checkout",
+    );
+    assert.ok(
+      buyerBCart.html.includes("Remove the unavailable items"),
+      "the second buyer should be told the item is gone, not shown a checkout button",
+    );
+
+    // Posting the action anyway must still be refused by the server, not oversold.
+    const secondBody = new FormData();
+    secondBody.append("slug", slug);
+    secondBody.append("name", "Buyer Two");
+    secondBody.append("phone", "9876500002");
+    secondBody.append(checkoutAction, "");
+    const secondResponse = await buyerB.send(`/b/${slug}/cart`, {
+      method: "POST",
+      body: secondBody,
+    });
+    assert.equal(secondResponse.status, 303, "the refused checkout should redirect");
+    assert.equal(
+      secondResponse.headers.get("location"),
+      `/b/${slug}/cart?error=unavailable`,
+      "the second buyer must be refused",
+    );
+    assert.equal(
+      row("SELECT COUNT(*) AS n FROM orders WHERE business_id = ?", business.id).n,
+      1,
+      "a refused checkout must not create an order",
+    );
+    assert.equal(
+      row("SELECT stock_on_hand FROM inventory WHERE product_id = ?", productId).stock_on_hand,
+      0,
+      "a refused checkout must not push stock below zero",
+    );
+
+    /* ---- Two left but three wanted: the server refuses the shortage ---- */
+    // The last case can be caught while the page is rendered. This one cannot:
+    // both carts look orderable, so only the atomic UPDATE can settle it.
+    location = await owner.submit("/dashboard/inventory", { productId, quantity: "3", threshold: "1" });
+    assert.equal(location, "/dashboard/inventory?saved=1");
+
+    const buyerC = createApi(server.base);
+    const buyerD = createApi(server.base);
+    for (const buyer of [buyerC, buyerD]) {
+      location = await buyer.submit(`/b/${slug}`, { slug, productId, quantity: "2" });
+      assert.equal(location, `/b/${slug}/cart?added=1`);
+    }
+
+    location = await buyerC.submit(`/b/${slug}/cart`, {
+      slug,
+      name: "Buyer Three",
+      phone: "9876500003",
+    });
+    assert.match(location, new RegExp(`^/b/${slug}/order/`), `the third buyer should get an order, got ${location}`);
+    assert.equal(
+      row("SELECT stock_on_hand FROM inventory WHERE product_id = ?", productId).stock_on_hand,
+      1,
+      "two of the three units should leave the shelf",
+    );
+    assert.equal(
+      row("SELECT is_available FROM products WHERE id = ?", productId).is_available,
+      1,
+      "one unit is left, so the product stays on sale",
+    );
+
+    const buyerDCart = await buyerD.get(`/b/${slug}/cart`);
+    assert.ok(
+      findActionId(buyerDCart.html, ["slug", "name", "phone"]),
+      "the fourth buyer's cart still looks orderable, which is why the server has to decide",
+    );
+
+    location = await buyerD.submit(`/b/${slug}/cart`, {
+      slug,
+      name: "Buyer Four",
+      phone: "9876500004",
+    });
+    assert.equal(location, `/b/${slug}/cart?error=stock`, "the shortage must be refused by the server");
+    assert.equal(
+      row("SELECT COUNT(*) AS n FROM orders WHERE business_id = ?", business.id).n,
+      2,
+      "the refused checkout must not become an order",
+    );
+    assert.equal(
+      row("SELECT stock_on_hand FROM inventory WHERE product_id = ?", productId).stock_on_hand,
+      1,
+      "the refused checkout must leave the last unit where it was",
     );
 
     /* ---- Staff: no seat cap, add, change role, remove ------------- */

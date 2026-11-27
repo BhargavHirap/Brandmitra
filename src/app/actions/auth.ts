@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   createSession,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { logAudit } from "@/lib/business";
+import { clientIpFrom, logSecurityEvent } from "@/lib/security";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -67,6 +69,16 @@ export async function signInAction(formData: FormData): Promise<void> {
 
   // Same message for "no such user" and "wrong password": never reveal which.
   if (!user || !(await verifyPassword(password, user.password_hash))) {
+    // One row per refused attempt. The reason is deliberately the same for
+    // "no such account" and "wrong password" — the log must not become the
+    // place where account existence leaks either.
+    await logSecurityEvent({
+      kind: "signin_failed",
+      email,
+      ip: clientIpFrom(await headers()),
+      path: "/login",
+      detail: { reason: "bad_credentials" },
+    });
     redirect("/login?error=credentials");
   }
 

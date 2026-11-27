@@ -81,6 +81,8 @@ ordered, never what it costs.
 | `marketing_campaigns` | Generated content, `status` = `draft` / `approved` / `scheduled` / `published`. |
 | `notifications` | Per-business (optionally per-user) alerts. |
 | `audit_logs` | **Every sensitive action**, including AI actions (`actor_type` = `user`/`ai`/`system`), with a JSON payload. This is what makes the AI agent reviewable and reversible. |
+| `security_logs` | Refused sign-ins (`signin_failed`) and webhooks that failed their signature check (`webhook_rejected`): kind, email, ip, path and a JSON detail. Never a password, token or request body, and never shown in the app. |
+| `rate_limits` | One row per user, per AI feature, per fixed window. The upsert increments `count`, which is how burst limits are enforced without a second service. Rows older than a day are pruned. |
 
 ---
 

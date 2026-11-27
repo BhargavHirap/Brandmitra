@@ -1,6 +1,7 @@
 import { logAudit } from "@/lib/business";
 import { getDb } from "@/lib/db";
 import { isoFromEpochSeconds, razorpayConfig, verifyWebhookSignature } from "@/lib/razorpay";
+import { clientIpFrom, logSecurityEvent } from "@/lib/security";
 
 /**
  * RAZORPAY'S RECEIPT.
@@ -77,8 +78,16 @@ async function handle(request: Request): Promise<Response> {
   const rawBody = await request.text();
   const signature = (request.headers.get("x-razorpay-signature") ?? "").trim();
 
+  // The body, the signature and the secret are never written to the log — only
+  // the fact that this caller could not prove it was Razorpay.
   const valid = await verifyWebhookSignature(rawBody, signature, config.webhookSecret);
   if (!valid) {
+    await logSecurityEvent({
+      kind: "webhook_rejected",
+      ip: clientIpFrom(request.headers),
+      path: "/api/razorpay/webhook",
+      detail: { reason: signature ? "bad_signature" : "missing_signature", bodyBytes: rawBody.length },
+    });
     return json({ ok: false, error: "Bad or missing signature." }, 400);
   }
 
@@ -86,6 +95,12 @@ async function handle(request: Request): Promise<Response> {
   try {
     body = JSON.parse(rawBody) as WebhookBody;
   } catch {
+    await logSecurityEvent({
+      kind: "webhook_rejected",
+      ip: clientIpFrom(request.headers),
+      path: "/api/razorpay/webhook",
+      detail: { reason: "body_not_json", bodyBytes: rawBody.length },
+    });
     return json({ ok: false, error: "Body was not JSON." }, 400);
   }
 

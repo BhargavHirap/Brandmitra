@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { logAudit, requireBusiness } from "@/lib/business";
-import { cartCookieName, loadCart } from "@/lib/cart";
+import { cartCookieName, loadCart, type CartLine } from "@/lib/cart";
 import { getDb, type Db } from "@/lib/db";
 import { allowedTransitions } from "@/lib/orders";
 
@@ -52,6 +52,94 @@ async function nextOrderNumber(db: Db, businessId: string): Promise<string> {
   return `BM-${Date.now().toString().slice(-7)}`;
 }
 
+type StockReservation = { productId: string; quantity: number };
+
+/**
+ * Takes stock for every tracked line, atomically, before the order row exists.
+ *
+ * Each line is one conditional UPDATE (`… AND stock_on_hand >= ?`). SQLite
+ * applies writes one at a time inside the statement, so when two buyers race for
+ * the last unit the second UPDATE matches no row and changes nothing: exactly
+ * one of them gets it. Reading the stock first and then subtracting would be the
+ * bug this replaces — both readers would see 1 and both would write 0.
+ *
+ * Products with no `inventory` row are not tracked and stay unlimited, which is
+ * how the catalogue worked before stock existed.
+ */
+async function reserveStock(
+  db: Db,
+  businessId: string,
+  lines: CartLine[],
+): Promise<{ shortfall: CartLine | null; reserved: StockReservation[] }> {
+  const productIds = [...new Set(lines.map((line) => line.productId))];
+  if (productIds.length === 0) return { shortfall: null, reserved: [] };
+
+  const tracked = await db.all<{ product_id: string }>(
+    `SELECT product_id FROM inventory
+      WHERE business_id = ? AND product_id IN (${productIds.map(() => "?").join(", ")})`,
+    [businessId, ...productIds],
+  );
+  const trackedIds = new Set(tracked.map((row) => row.product_id));
+
+  const now = new Date().toISOString();
+  const reserved: StockReservation[] = [];
+
+  for (const line of lines) {
+    if (!trackedIds.has(line.productId)) continue;
+
+    const changed = await db.run(
+      `UPDATE inventory
+          SET stock_on_hand = stock_on_hand - ?, updated_at = ?
+        WHERE business_id = ? AND product_id = ? AND stock_on_hand >= ?`,
+      [line.quantity, now, businessId, line.productId, line.quantity],
+    );
+
+    if (changed === 0) {
+      await releaseStock(db, businessId, reserved);
+      return { shortfall: line, reserved: [] };
+    }
+
+    reserved.push({ productId: line.productId, quantity: line.quantity });
+  }
+
+  // A product that just sold its last unit reads as sold out on the storefront.
+  await db.run(
+    `UPDATE products SET is_available = 0
+      WHERE business_id = ?
+        AND id IN (SELECT product_id FROM inventory WHERE business_id = ? AND stock_on_hand <= 0)`,
+    [businessId, businessId],
+  );
+
+  return { shortfall: null, reserved };
+}
+
+/** Puts reserved stock back, and un-marks a product that is no longer at zero. */
+async function releaseStock(
+  db: Db,
+  businessId: string,
+  reserved: StockReservation[],
+): Promise<void> {
+  if (reserved.length === 0) return;
+
+  const now = new Date().toISOString();
+  const productIds = reserved.map((entry) => entry.productId);
+
+  await db.batch([
+    ...reserved.map((entry) => ({
+      sql: `UPDATE inventory SET stock_on_hand = stock_on_hand + ?, updated_at = ?
+             WHERE business_id = ? AND product_id = ?`,
+      params: [entry.quantity, now, businessId, entry.productId],
+    })),
+    {
+      sql: `UPDATE products SET is_available = 1
+             WHERE business_id = ?
+               AND id IN (${productIds.map(() => "?").join(", ")})
+               AND id IN (SELECT product_id FROM inventory WHERE business_id = ? AND stock_on_hand > 0)`,
+      params: [businessId, ...productIds, businessId],
+    },
+  ]);
+}
+
 export async function placeOrderAction(formData: FormData): Promise<void> {
   const slug = text(formData, "slug", 80);
   const name = text(formData, "name", 80);
@@ -94,107 +182,123 @@ export async function placeOrderAction(formData: FormData): Promise<void> {
     redirect(`/b/${business.slug}/order/${existingOrder.id}`);
   }
 
-  const orderNumber = await nextOrderNumber(db, business.id);
-
-  const existingCustomer = await db.first<{ id: string; name: string }>(
-    "SELECT id, name FROM customers WHERE business_id = ? AND phone = ?",
-    [business.id, phone],
-  );
-
-  let customerId: string;
-  if (existingCustomer) {
-    customerId = existingCustomer.id;
-    if (name && name !== existingCustomer.name) {
-      await db.run("UPDATE customers SET name = ? WHERE id = ? AND business_id = ?", [
-        name,
-        customerId,
-        business.id,
-      ]);
-    }
-  } else {
-    customerId = crypto.randomUUID();
-    await db.run(
-      `INSERT INTO customers (id, business_id, user_id, name, phone, email, loyalty_points, created_at)
-       VALUES (?, ?, NULL, ?, ?, '', 0, ?)`,
-      [customerId, business.id, name, phone, now],
-    );
+  // Stock is taken before the order row exists, so an order can never be written
+  // for something that sold out a moment earlier. If saving the order then
+  // fails — including losing the double-submit race — the reservation is handed
+  // back in the catch below.
+  const reservation = await reserveStock(db, business.id, cart.lines);
+  if (reservation.shortfall) {
+    redirect(`/b/${business.slug}/cart?error=stock`);
   }
-
-  const branch = await db.first<{ id: string }>(
-    "SELECT id FROM business_branches WHERE business_id = ? ORDER BY is_default DESC LIMIT 1",
-    [business.id],
-  );
 
   try {
-    await db.run(
-      `INSERT INTO orders
-         (id, business_id, branch_id, customer_id, order_number, status, payment_status, payment_method,
-          channel, subtotal, discount, delivery_fee, total, coupon_id, customer_note, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'new', 'pending', ?, 'web', ?, 0, 0, ?, NULL, ?, ?, ?)`,
-      [
-        orderId,
-        business.id,
-        branch?.id ?? null,
-        customerId,
-        orderNumber,
-        paymentMethod,
-        subtotal,
-        total,
-        note,
-        now,
-        now,
-      ],
+    const orderNumber = await nextOrderNumber(db, business.id);
+
+    const existingCustomer = await db.first<{ id: string; name: string }>(
+      "SELECT id, name FROM customers WHERE business_id = ? AND phone = ?",
+      [business.id, phone],
     );
-  } catch (error) {
-    // A simultaneous submit won the race: show that order instead of failing.
-    const raced = await db.first<{ id: string }>(
-      "SELECT id FROM orders WHERE id = ? AND business_id = ?",
-      [orderId, business.id],
-    );
-    if (raced) {
-      store.delete(cartCookieName(business.id));
-      redirect(`/b/${business.slug}/order/${raced.id}`);
+
+    let customerId: string;
+    if (existingCustomer) {
+      customerId = existingCustomer.id;
+      if (name && name !== existingCustomer.name) {
+        await db.run("UPDATE customers SET name = ? WHERE id = ? AND business_id = ?", [
+          name,
+          customerId,
+          business.id,
+        ]);
+      }
+    } else {
+      customerId = crypto.randomUUID();
+      await db.run(
+        `INSERT INTO customers (id, business_id, user_id, name, phone, email, loyalty_points, created_at)
+         VALUES (?, ?, NULL, ?, ?, '', 0, ?)`,
+        [customerId, business.id, name, phone, now],
+      );
     }
+
+    const branch = await db.first<{ id: string }>(
+      "SELECT id FROM business_branches WHERE business_id = ? ORDER BY is_default DESC LIMIT 1",
+      [business.id],
+    );
+
+    try {
+      await db.run(
+        `INSERT INTO orders
+           (id, business_id, branch_id, customer_id, order_number, status, payment_status, payment_method,
+            channel, subtotal, discount, delivery_fee, total, coupon_id, customer_note, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'new', 'pending', ?, 'web', ?, 0, 0, ?, NULL, ?, ?, ?)`,
+        [
+          orderId,
+          business.id,
+          branch?.id ?? null,
+          customerId,
+          orderNumber,
+          paymentMethod,
+          subtotal,
+          total,
+          note,
+          now,
+          now,
+        ],
+      );
+    } catch (error) {
+      // A simultaneous submit won the race: show that order instead of failing.
+      const raced = await db.first<{ id: string }>(
+        "SELECT id FROM orders WHERE id = ? AND business_id = ?",
+        [orderId, business.id],
+      );
+      if (raced) {
+        store.delete(cartCookieName(business.id));
+        redirect(`/b/${business.slug}/order/${raced.id}`);
+      }
+      throw error;
+    }
+
+    for (const line of cart.lines) {
+      await db.run(
+        `INSERT INTO order_items
+           (id, business_id, order_id, product_id, name_snapshot, quantity, unit_price, options, line_total, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '')`,
+        [
+          crypto.randomUUID(),
+          business.id,
+          orderId,
+          line.productId,
+          line.name,
+          line.quantity,
+          line.unitPrice,
+          JSON.stringify(line.options),
+          line.lineTotal,
+        ],
+      );
+    }
+
+    await logAudit({
+      businessId: business.id,
+      actorUserId: null,
+      action: "order.created",
+      entity: "order",
+      entityId: orderId,
+      payload: { orderNumber, total, items: cart.lines.length, channel: "web" },
+    });
+
+    if (cart.cartId) {
+      await db.run(
+        "UPDATE carts SET status = 'converted', updated_at = ? WHERE id = ? AND business_id = ?",
+        [now, cart.cartId, business.id],
+      );
+    }
+
+    store.delete(cartCookieName(business.id));
+  } catch (error) {
+    // Whatever stopped the order, the customer is not charged stock for it. A
+    // redirect throws too, and releasing first is still correct there: the only
+    // redirect in the block above shows an order that already exists.
+    await releaseStock(db, business.id, reservation.reserved);
     throw error;
   }
-
-  for (const line of cart.lines) {
-    await db.run(
-      `INSERT INTO order_items
-         (id, business_id, order_id, product_id, name_snapshot, quantity, unit_price, options, line_total, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '')`,
-      [
-        crypto.randomUUID(),
-        business.id,
-        orderId,
-        line.productId,
-        line.name,
-        line.quantity,
-        line.unitPrice,
-        JSON.stringify(line.options),
-        line.lineTotal,
-      ],
-    );
-  }
-
-  await logAudit({
-    businessId: business.id,
-    actorUserId: null,
-    action: "order.created",
-    entity: "order",
-    entityId: orderId,
-    payload: { orderNumber, total, items: cart.lines.length, channel: "web" },
-  });
-
-  if (cart.cartId) {
-    await db.run("UPDATE carts SET status = 'converted', updated_at = ? WHERE id = ? AND business_id = ?", [
-      now,
-      cart.cartId,
-      business.id,
-    ]);
-  }
-
-  store.delete(cartCookieName(business.id));
 
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/orders");

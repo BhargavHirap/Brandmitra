@@ -12,6 +12,7 @@ import {
 } from "@/lib/ai";
 import { logAudit, requireBusiness, slugify } from "@/lib/business";
 import { getDb, type Db } from "@/lib/db";
+import { AI_RATE_LIMITS, checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 
 /**
  * MENU PHOTO IMPORT.
@@ -66,7 +67,7 @@ export async function scanMenuAction(
   _previous: MenuScanState,
   formData: FormData,
 ): Promise<MenuScanState> {
-  const { business, planId } = await requireBusiness();
+  const { user, business, planId } = await requireBusiness();
   const db = await getDb();
   const credits = await getAiUsage(db, business.id, planId);
 
@@ -94,6 +95,13 @@ export async function scanMenuAction(
       credits,
       `You have used all ${credits.limit} AI credits for ${credits.monthLabel} on the ${credits.planName} plan. They reset on the 1st.`,
     );
+  }
+
+  // A photo is the largest request this app sends to the model, so it has the
+  // tightest burst fence of the AI actions.
+  const burst = await checkRateLimit(AI_RATE_LIMITS.menuScan, user.id, db);
+  if (!burst.allowed) {
+    return fail(credits, rateLimitMessage(burst, AI_RATE_LIMITS.menuScan.label));
   }
 
   const result = await readMenuFromImage({ mimeType, base64 });

@@ -26,6 +26,7 @@ const ERROR_TEXT: Record<string, string> = {
   name: "Please enter the name the order should be prepared for.",
   phone: "Please enter a valid phone number with at least 10 digits.",
   closed: "This storefront is not accepting orders right now.",
+  stock: "Someone else took the last of one item while you were checking out. Nothing was ordered — lower the quantity or remove it above, then try again.",
 };
 
 type StoreRow = {

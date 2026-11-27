@@ -55,6 +55,62 @@ Fixed in `next.config.ts`:
   allowlist exists because the app is also viewed inside the editor's preview
   panel; `X-Frame-Options: DENY` would blank that.
 
+### 4. Nothing stopped a signed-in user hammering the AI buttons
+
+The monthly credit in `plans.ai_credits` counts *successful* answers, so a loop
+of fifty presses was fifty paid provider calls before any limit applied. Each AI
+action now counts one row in `rate_limits` through a single upsert, keyed by the
+signed-in user's id (never a form field), and refuses the call when the window is
+spent:
+
+| Action | Calls | Window |
+| --- | --- | --- |
+| Product copy (`src/app/actions/ai.ts`) | 20 | 10 min |
+| Campaign drafts (`src/app/actions/marketing.ts`) | 10 | 10 min |
+| Call scripts (`src/app/actions/reception.ts`) | 10 | 10 min |
+| Business agent (`src/app/actions/agent.ts`) | 20 | 10 min |
+| Menu photo scan (`src/app/actions/menu-import.ts`) | 10 | 10 min |
+
+The refusal is a sentence, not an error page, spends no credit and changes
+nothing. See `src/lib/rate-limit.ts`.
+
+### 5. Refused sign-ins and rejected webhooks left no trace
+
+`security_logs` records two kinds of event and nothing else: `signin_failed`
+(email, IP, path, `reason: bad_credentials`) and `webhook_rejected` (IP, path,
+`reason: missing_signature` / `bad_signature` / `body_not_json`).
+
+Deliberate limits: the same `reason` is written for "no such account" and "wrong
+password" so the log cannot be used to discover which addresses exist; no
+password, token, signature or request body is stored; and the write is wrapped in
+try/catch, so a logging failure never turns a refusal into a crash
+(`src/lib/security.ts`). Nothing in the app reads the table — it is for the owner
+to inspect with SQL when something looks wrong.
+
+### 6. Two buyers could oversell the last unit
+
+Checkout checked availability when the item went into the cart, then wrote the
+order; stock was never reduced, and two tabs could both pass the check.
+
+`placeOrderAction` now reserves stock **before** the order row exists, one
+conditional UPDATE per tracked line:
+
+```sql
+UPDATE inventory SET stock_on_hand = stock_on_hand - ?
+ WHERE business_id = ? AND product_id = ? AND stock_on_hand >= ?
+```
+
+SQLite applies writes one at a time, so the second buyer's UPDATE matches no row
+and returns `0` changes — that is the signal to refuse, and the cart comes back
+with "someone else took the last of one item". Reading the stock and then
+subtracting would have been the bug: both readers see 1, both write 0.
+
+Two related facts: a product that reaches zero is marked `is_available = 0` in
+the same step, so the storefront shows it sold out; and if the order fails to
+save for any reason the reserved units are put back (`releaseStock`), so a failed
+checkout never eats stock. Products with no `inventory` row stay unlimited, as
+before.
+
 ## What was already in place
 
 - **No secret in the browser.** Verified: all served JS chunks were fetched and
@@ -102,21 +158,27 @@ Open the live site, press F12, and try these:
    the response.
 7. **Read the error** — trigger a failing page and check that the screen says
    only "That screen did not load", with no query text or table names.
+8. **Watch a refused sign-in get recorded** — sign in with a wrong password,
+   then run
+   `SELECT kind, email, ip, created_at FROM security_logs ORDER BY created_at DESC LIMIT 5;`.
+   The attempt is there; the password is not.
+9. **Hammer an AI button** — press Generate in the marketing studio eleven times
+   in ten minutes. The eleventh says how long to wait and no credit is used. In
+   the database: `SELECT key, count FROM rate_limits;`
+10. **Race two checkouts** — set a product's stock to 1, put it in two separate
+    browsers' carts, then check out in both. The first gets an order number, the
+    second gets "someone else took the last of one item", stock reads `0`, and
+    `SELECT COUNT(*) FROM orders` did not grow by two.
 
 ## Still open
 
-- **No per-user rate limiting.** Repeated AI calls are bounded only by the
-  provider's own quota; a signed-in user can press a button in a loop. Needs a
-  counter in D1 (or a Durable Object) keyed by user id for the AI and
-  menu-scan actions.
-- **No `security_logs` table.** Failed sign-ins and rejected webhooks are not
-  recorded anywhere yet.
 - **Payments are not live.** `RAZORPAY_*` secrets are not set, so plan buttons
   stay disabled. `payment.failed` and refunds are acknowledged and ignored by the
   webhook — nothing reconciles a failed or refunded payment back to a plan.
-- **No stock decrement at checkout.** Availability is checked before an item is
-  added, but two simultaneous checkouts can both pass. Needs an atomic
-  `UPDATE … WHERE stock >= ?` inside a transaction.
+- **Refunds still do not return stock.** A refund or a cancelled order is not
+  reconciled back into `inventory` — the owner puts the unit back by hand on the
+  inventory screen. Doing it automatically needs the order-status transition to
+  write stock, which is a product decision (a cancelled pizza is not resellable).
 - **No CSP beyond `frame-ancestors`.** A full `script-src` policy is the next
   step; it needs testing against the framework's inline bootstrap scripts.
 - **No automated dependency or secret scanning** in CI.

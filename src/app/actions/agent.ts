@@ -10,6 +10,7 @@ import {
 } from "@/lib/ai";
 import { logAudit, requireBusiness } from "@/lib/business";
 import { getDb } from "@/lib/db";
+import { AI_RATE_LIMITS, checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 
 /**
  * AI BUSINESS AGENT ACTION — one question in, one answer out.
@@ -124,6 +125,13 @@ export async function askAgentAction(
   }
 
   // 3–5. Pick a report, run its fixed SELECT, reword only those numbers.
+  // Two model calls happen inside answerWithAgent, so a burst fence sits in
+  // front of it: 20 questions in ten minutes is a script, not a person.
+  const burst = await checkRateLimit(AI_RATE_LIMITS.agent, user.id, db);
+  if (!burst.allowed) {
+    return state("error", credits, rateLimitMessage(burst, AI_RATE_LIMITS.agent.label), question);
+  }
+
   const result = await answerWithAgent(db, business.id, question);
 
   if (!result.ok) {
