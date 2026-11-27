@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BrandLink } from "@/components/brand";
 import { PhoneStory } from "@/components/landing/phone-story";
 import { Reveal } from "@/components/landing/reveal";
+import { LegalLinks } from "@/components/landing/legal-links";
 import { FooterLinks, SocialLinks } from "@/components/landing/social-links";
 
 export const metadata = {
@@ -103,7 +104,10 @@ export default function LandingPage() {
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-5 py-8 text-[11px] text-muted sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} Vantra</p>
           <SocialLinks />
-          <FooterLinks pageHref="/showcase" pageLabel="Showcase" />
+          <div className="flex flex-col gap-2 sm:items-end">
+            <FooterLinks pageHref="/showcase" pageLabel="Showcase" />
+            <LegalLinks />
+          </div>
         </div>
       </footer>
     </div>

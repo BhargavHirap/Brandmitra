@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BrandLink } from "@/components/brand";
 import { DishOrbitCarousel } from "@/components/landing/dish-orbit-carousel";
 import { Reveal } from "@/components/landing/reveal";
+import { LegalLinks } from "@/components/landing/legal-links";
 import { FooterLinks, SocialLinks } from "@/components/landing/social-links";
 import { WarpCarousel } from "@/components/landing/warp-carousel";
 
@@ -84,7 +85,10 @@ export default function ShowcasePage() {
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-5 py-8 text-[11px] text-muted sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} Vantra</p>
           <SocialLinks />
-          <FooterLinks pageHref="/" pageLabel="Home" />
+          <div className="flex flex-col gap-2 sm:items-end">
+            <FooterLinks pageHref="/" pageLabel="Home" />
+            <LegalLinks />
+          </div>
         </div>
       </footer>
     </div>
