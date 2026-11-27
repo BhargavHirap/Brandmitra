@@ -94,6 +94,33 @@ refused sign-in carries no business id, so showing it to a normal shop owner
 would hand them other people's addresses. Every value on the screen is stored
 as-is; nothing on it is editable.
 
+Nobody watches a log at 2 a.m., so a burst now sends one email. After a refused
+sign-in is written, `maybeAlertOnSignInBurst` (`src/lib/security-alert.ts`)
+counts `signin_failed` rows in the last 10 minutes and, at 10 or more, emails
+the founders through Brevo's transactional API.
+
+Three properties matter more than the wording:
+
+- **One email per burst.** The cooldown is a single conditional upsert into
+  `security_alert_state`: `last_alert_at` is written only when it is empty or
+  older than an hour, so of two simultaneous attempts exactly one sees a changed
+  row. No lock, no race.
+- **It cannot break a sign-in.** Every path returns an outcome — a missing
+  table, an unreachable provider or a refused key leaves the refusal and the log
+  write untouched. A refused key keeps the claim (retrying a wrong key every
+  minute is noise); a timeout or a 5xx releases it, so the next refused sign-in
+  tries again.
+- **Off means off.** With no `BREVO_API_KEY`, no `SECURITY_ALERT_FROM` or no
+  recipient list nothing is sent and nothing is claimed, and
+  `/dashboard/security` names the missing variable instead of implying an alert
+  would arrive.
+
+Setup is one free Brevo account (300 emails a day, no card, a single verified
+sender address is enough, no domain needed): add `BREVO_API_KEY` and
+`SECURITY_ALERT_FROM` as Worker secrets. Recipients default to `FOUNDER_EMAILS`;
+the thresholds are `SECURITY_ALERT_THRESHOLD` (10),
+`SECURITY_ALERT_WINDOW_MINUTES` (10) and `SECURITY_ALERT_COOLDOWN_MINUTES` (60).
+
 ### 6. Two buyers could oversell the last unit
 
 Checkout checked availability when the item went into the cart, then wrote the
@@ -171,6 +198,11 @@ Open the live site, press F12, and try these:
    password is not there. Signed in as an ordinary shop owner, the same URL
    redirects to `/dashboard` and the sidebar has no Security log link. With SQL:
    `SELECT kind, email, ip, created_at FROM security_logs ORDER BY created_at DESC LIMIT 5;`
+   With alerts configured, the tenth refusal inside ten minutes emails the
+   founders once — with the count, the window, the most attempted addresses and
+   the number of IPs — and further refusals send nothing until the hour is up.
+   The alert panel on the same screen shows the threshold, the last alert and
+   any delivery error.
 9. **Hammer an AI button** — press Generate in the marketing studio eleven times
    in ten minutes. The eleventh says how long to wait and no credit is used. In
    the database: `SELECT key, count FROM rate_limits;`
@@ -191,7 +223,11 @@ Open the live site, press F12, and try these:
 - **No CSP beyond `frame-ancestors`.** A full `script-src` policy is the next
   step; it needs testing against the framework's inline bootstrap scripts.
 - **No automated dependency or secret scanning** in CI.
-- **The security log is a list, not an alert.** Nothing emails or notifies when
-  a burst of refused sign-ins arrives; someone has to open `/dashboard/security`
-  and notice. There is also no way to mark an event as seen, and rows are never
-  pruned automatically.
+- **Rejected webhooks still do not alert.** Email alerts cover refused sign-ins
+  only; a wave of forged payment webhooks is on the screen but nobody is told.
+  There is also no way to mark an event as seen, and rows are never pruned
+  automatically.
+- **Email is the only channel.** No SMS or WhatsApp fallback: both need a paid
+  provider or an approved Meta template, and a Gmail app already puts this email
+  on a founder's phone. Alerts are also off until `BREVO_API_KEY` and
+  `SECURITY_ALERT_FROM` are set on the deployment.

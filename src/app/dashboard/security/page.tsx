@@ -4,6 +4,7 @@ import { EmptyState, PageHeader, Panel, Stat } from "@/components/ui";
 import { requireBusiness } from "@/lib/business";
 import { firstRow, getDb, rowsOf } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
+import { alertConfig, alertMissing, isAlertConfigured, readAlertState } from "@/lib/security-alert";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Security log" };
@@ -90,6 +91,14 @@ export default async function SecurityLogPage() {
   const signIns = week("signin_failed");
   const webhooks = week("webhook_rejected");
 
+  // Whether a burst would actually reach anyone, read from the same environment
+  // the sign-in action reads. "Configured" is not the same as "working": the
+  // last attempt's error is shown when there is one.
+  const alerting = alertConfig();
+  const alertOn = isAlertConfigured(alerting);
+  const alertState = alertOn ? await readAlertState(db) : null;
+  const span = (minutes: number) => (minutes === 1 ? "minute" : "minutes");
+
   return (
     <div className="space-y-4 sm:space-y-5">
       <PageHeader
@@ -122,6 +131,40 @@ export default async function SecurityLogPage() {
           hint="All time"
         />
       </div>
+
+      <Panel
+        title="Email alerts"
+        description="A burst of refused sign-ins reaches the founders without anyone opening this screen."
+      >
+        {!alertOn ? (
+          <p className="text-[12.5px] leading-relaxed text-muted">
+            <span className="font-medium">Off.</span> Missing{" "}
+            {alertMissing(alerting).join(", ")}. Until those are set, nothing is emailed and this
+            log is still only read by hand.
+          </p>
+        ) : (
+          <div className="space-y-1.5 text-[12.5px] leading-relaxed">
+            <p>
+              <span className="text-muted">Trigger</span> · {alerting.threshold} refused sign-ins
+              in {alerting.windowMinutes} {span(alerting.windowMinutes)}
+            </p>
+            <p>
+              <span className="text-muted">Sent to</span> · {alerting.recipients.length}{" "}
+              {alerting.recipients.length === 1 ? "address" : "addresses"}, at most one email
+              every {alerting.cooldownMinutes} {span(alerting.cooldownMinutes)}
+            </p>
+            <p>
+              <span className="text-muted">Last alert</span> ·{" "}
+              {alertState?.last_alert_at ? formatDateTime(alertState.last_alert_at) : "none yet"}
+            </p>
+            {alertState?.last_error ? (
+              <p className="break-words text-danger">
+                Last attempt failed · {alertState.last_error}
+              </p>
+            ) : null}
+          </div>
+        )}
+      </Panel>
 
       <Panel
         title="Recent events"

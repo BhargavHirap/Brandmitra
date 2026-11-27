@@ -1076,6 +1076,7 @@ test("the security log opens for a founder and for nobody else", { timeout: 240_
     assert.ok(html.includes("203.0.113.9"), "the reported IP is shown");
     assert.ok(html.includes("bad_signature"), "the stored reason is shown");
     assert.ok(html.includes("/dashboard/security"), "a founder gets the sidebar link");
+    assert.ok(html.includes("Email alerts"), "the screen says whether a burst would reach anyone");
   } finally {
     try {
       purge();

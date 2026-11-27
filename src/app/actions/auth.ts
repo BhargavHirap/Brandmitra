@@ -12,6 +12,7 @@ import {
 import { getDb } from "@/lib/db";
 import { logAudit } from "@/lib/business";
 import { clientIpFrom, logSecurityEvent } from "@/lib/security";
+import { maybeAlertOnSignInBurst } from "@/lib/security-alert";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -79,6 +80,10 @@ export async function signInAction(formData: FormData): Promise<void> {
       path: "/login",
       detail: { reason: "bad_credentials" },
     });
+    // A burst of these is exactly what nobody is watching for at 2 a.m. The
+    // check is one indexed count, it never throws, and it does nothing at all
+    // until an email provider is configured.
+    await maybeAlertOnSignInBurst(db);
     redirect("/login?error=credentials");
   }
 

@@ -390,6 +390,15 @@ CREATE TABLE IF NOT EXISTS security_logs (
 CREATE INDEX IF NOT EXISTS idx_security_logs_created ON security_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_security_logs_kind ON security_logs(kind, created_at);
 
+CREATE TABLE IF NOT EXISTS security_alert_state (
+  channel TEXT PRIMARY KEY,
+  last_alert_at TEXT,
+  last_count INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT NOT NULL DEFAULT '',
+  last_error_at TEXT,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS rate_limits (
   key TEXT PRIMARY KEY,
   window_start INTEGER NOT NULL,
