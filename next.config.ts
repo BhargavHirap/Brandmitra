@@ -19,6 +19,34 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: "4mb" },
   },
+  /*
+   * Baseline hardening on every response. These are cheap and cannot break a
+   * page: the browser stops guessing a file's type, stops leaking the full URL
+   * of our pages to other sites, and refuses device permissions this app never
+   * asks for.
+   *
+   * Clickjacking is blocked with `frame-ancestors` rather than
+   * `X-Frame-Options: DENY` because the app is also viewed inside the editor's
+   * preview panel, and DENY would blank that. The allowlist keeps every other
+   * origin out.
+   */
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          {
+            key: "Content-Security-Policy",
+            value:
+              "frame-ancestors 'self' https://*.freebuff.com https://*.freebuff.site https://*.style.dev https://*.agent37.app",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

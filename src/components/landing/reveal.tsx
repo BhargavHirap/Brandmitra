@@ -1,13 +1,19 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 
 /**
- * Fades and lifts a section once, the first time it comes into view.
+ * Fades and lifts a section as it comes into view.
  *
- * Two rules it never breaks: nothing re-animates on scroll back up, and with
- * `prefers-reduced-motion: reduce` the content is simply there — the CSS in
- * globals.css does that part, so a broken observer can never hide a section.
+ * This is a plain server component on purpose. The effect used to need an
+ * IntersectionObserver, which meant the section started at `opacity: 0` and
+ * stayed invisible until React had hydrated — on a cheap phone that is a blank
+ * page for seconds. The animation now comes from CSS (`animation-timeline:
+ * view()` in globals.css), so the content is painted with the HTML and the fade
+ * runs off the compositor. Nothing here reaches the browser as JavaScript, and
+ * `prefers-reduced-motion: reduce` still turns the animation off entirely.
+ *
+ * `delay` is kept for a staggered pair (the showcase uses it): it shifts where
+ * the fade begins along the scroll, so the two blocks still arrive one after the
+ * other.
  */
 export function Reveal({
   children,
@@ -18,39 +24,10 @@ export function Reveal({
   delay?: number;
   className?: string;
 }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [shown, setShown] = useState(false);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-
-    if (typeof IntersectionObserver === "undefined") {
-      setShown(true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setShown(true);
-            observer.disconnect();
-          }
-        }
-      },
-      { rootMargin: "0px 0px -12% 0px", threshold: 0.08 },
-    );
-
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
   return (
     <div
-      ref={ref}
-      className={`reveal ${shown ? "is-in" : ""} ${className}`}
-      style={delay && shown ? { transitionDelay: `${delay}ms` } : undefined}
+      className={`reveal ${className}`}
+      style={delay ? ({ "--reveal-start": `${Math.round(delay / 20)}%` } as CSSProperties) : undefined}
     >
       {children}
     </div>
