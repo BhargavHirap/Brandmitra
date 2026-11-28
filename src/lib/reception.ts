@@ -91,7 +91,12 @@ const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export function parseClosedDays(value: string): number[] {
   return value
     .split(",")
-    .map((part) => Number(part.trim()))
+    .map((part) => part.trim())
+    // An empty value means "open every day". Without this filter
+    // `Number("")` is 0, which closed the business every Sunday — the one day
+    // most shops are explicit about.
+    .filter((part) => part.length > 0)
+    .map(Number)
     .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
 }
 

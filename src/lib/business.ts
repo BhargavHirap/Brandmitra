@@ -78,12 +78,22 @@ export function slugify(value: string): string {
     .slice(0, 48);
 }
 
+/**
+ * Slugs the app already publishes itself. "demo" is the storefront the landing
+ * page links to, so no sign-up may take it and quietly replace that shop.
+ */
+const RESERVED_SLUGS = new Set(["demo"]);
+
 /** Find a free public slug, e.g. cafe-alpha, cafe-alpha-2, cafe-alpha-3. */
 export async function uniqueSlug(base: string): Promise<string> {
   const db = await getDb();
   const root = slugify(base) || "business";
   let candidate = root;
   for (let attempt = 2; attempt < 200; attempt += 1) {
+    if (RESERVED_SLUGS.has(candidate)) {
+      candidate = `${root}-${attempt}`;
+      continue;
+    }
     const taken = await db.first<{ id: string }>("SELECT id FROM businesses WHERE slug = ?", [
       candidate,
     ]);

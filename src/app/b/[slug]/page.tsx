@@ -13,6 +13,7 @@ import {
 } from "@/components/storefront-catalogue";
 import { loadCart } from "@/lib/cart";
 import { getDb } from "@/lib/db";
+import { isDemoBusiness } from "@/lib/demo-store";
 import { industryLabel } from "@/lib/industries";
 import { sentenceStart, workspaceFor } from "@/lib/workspace";
 
@@ -32,6 +33,7 @@ type StorefrontRow = {
   name: string;
   industry: string;
   status: string;
+  owner_user_id: string;
   tagline: string | null;
   description: string | null;
   brand_color: string | null;
@@ -54,7 +56,7 @@ type StorefrontRow = {
 const loadStorefront = cache(async function loadStorefront(slug: string) {
   const db = await getDb();
   return db.first<StorefrontRow>(
-    `SELECT b.id, b.slug, b.name, b.industry, b.status,
+    `SELECT b.id, b.slug, b.name, b.industry, b.status, b.owner_user_id,
             p.tagline, p.description, p.brand_color, p.template, p.phone, p.whatsapp,
             p.email, p.address, p.city, p.map_url, p.opening_hours, p.social_links
        FROM businesses b
@@ -151,6 +153,7 @@ export default async function StorefrontPage({
   const whatsappDigits = (store.whatsapp ?? "").replace(/[^\d]/g, "");
   const suspended = store.status === "suspended";
   const typeLabel = industryLabel(store.industry);
+  const demo = isDemoBusiness(store.owner_user_id);
 
   const cart = suspended ? null : await loadCart(store.id);
   const cartError = error ? CART_ERRORS[error] : undefined;
@@ -203,6 +206,22 @@ export default async function StorefrontPage({
           </nav>
         </div>
       </header>
+
+      {demo && (
+        <div className="border-b border-line bg-canvas">
+          <div className="mx-auto flex max-w-6xl flex-col gap-1 px-5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[11.5px] leading-relaxed text-muted">
+              This is Vantra&apos;s demo shop. Place an order to try the whole flow — no sign-up needed.
+            </p>
+            <Link
+              href="/signup"
+              className="shrink-0 text-[11.5px] font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-ink"
+            >
+              Open your own shop free →
+            </Link>
+          </div>
+        </div>
+      )}
 
       {cartError && (
         <div className="border-b border-warning/20 bg-warning/5">

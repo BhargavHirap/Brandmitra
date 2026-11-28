@@ -36,9 +36,14 @@ export default function LandingPage() {
       <header className="sticky top-0 z-40 border-b border-line/70 bg-canvas/85 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-5">
           <BrandLink />
-          <Link href="/signup" className="btn btn-primary h-9 px-4 text-[12.5px]">
-            Start free
-          </Link>
+          <nav className="flex items-center gap-4">
+            <Link href="/demo" className="text-[12.5px] text-muted hover:text-ink">
+              Demo shop
+            </Link>
+            <Link href="/signup" className="btn btn-primary h-9 px-4 text-[12.5px]">
+              Start free
+            </Link>
+          </nav>
         </div>
       </header>
 
@@ -72,16 +77,32 @@ export default function LandingPage() {
           </Reveal>
         </section>
 
-        {/* 4 · The screens themselves, for anyone who wants the detail */}
-        <section className="border-y border-line/70 py-10">
+        {/* 4 · Try it, and the screens themselves for anyone who wants detail */}
+        <section className="border-y border-line/70">
           <Reveal>
-            <div className="mx-auto flex max-w-5xl flex-col items-center gap-2 px-5 text-center sm:flex-row sm:justify-between sm:text-left">
-              <p className="text-[12.5px] text-muted">
-                Want the dashboard and the front desk side by side?
-              </p>
-              <Link href="/showcase" className="text-[12.5px] font-medium underline decoration-line underline-offset-4 hover:decoration-ink">
-                Open the showcase
-              </Link>
+            <div className="mx-auto max-w-5xl divide-y divide-line/70 px-5">
+              <div className="flex flex-col items-center gap-2 py-6 text-center sm:flex-row sm:justify-between sm:text-left">
+                <p className="text-[12.5px] text-muted">
+                  Want to place an order before you sign up?
+                </p>
+                <Link
+                  href="/demo"
+                  className="text-[12.5px] font-medium underline decoration-line underline-offset-4 hover:decoration-ink"
+                >
+                  Order from the demo shop
+                </Link>
+              </div>
+              <div className="flex flex-col items-center gap-2 py-6 text-center sm:flex-row sm:justify-between sm:text-left">
+                <p className="text-[12.5px] text-muted">
+                  Want the dashboard and the front desk side by side?
+                </p>
+                <Link
+                  href="/showcase"
+                  className="text-[12.5px] font-medium underline decoration-line underline-offset-4 hover:decoration-ink"
+                >
+                  Open the showcase
+                </Link>
+              </div>
             </div>
           </Reveal>
         </section>
