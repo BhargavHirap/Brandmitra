@@ -116,7 +116,7 @@ export default async function OrderReceiptPage({
       </header>
 
       <main className="mx-auto max-w-3xl px-5 py-8 sm:py-10">
-        <div className="rounded-xl border border-success/25 bg-success/5 px-4 py-3.5">
+        <div className="motion-arc rounded-xl border border-success/25 bg-success/5 px-4 py-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-success">
             {ws.receiptTitle}
           </p>

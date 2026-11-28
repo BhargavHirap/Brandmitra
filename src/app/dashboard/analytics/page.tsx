@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { EmptyState, PageHeader, Panel, Stat } from "@/components/ui";
 import { requireBusiness } from "@/lib/business";
 import { firstRow, getDb, rowsOf } from "@/lib/db";
@@ -171,13 +172,14 @@ export default async function AnalyticsPage() {
           action={<span className="text-[11px] text-muted">Peak {formatMoney(maxRevenue)}</span>}
         >
           <div className="flex h-[150px] items-end gap-[3px]">
-            {series.map((point) => (
+            {series.map((point, index) => (
               <div key={point.key} className="flex h-full min-w-0 flex-1 items-end">
                 <div
-                  className="w-full rounded-t-[2px] bg-ink"
+                  className="motion-bar w-full rounded-t-[2px] bg-ink"
                   style={{
                     height: `${Math.max(point.revenue > 0 ? 5 : 2, Math.round((point.revenue / maxRevenue) * 100))}%`,
-                  }}
+                    "--i": index,
+                  } as CSSProperties}
                   title={`${point.label}: ${formatMoney(point.revenue)} · ${point.orders} orders`}
                 />
               </div>

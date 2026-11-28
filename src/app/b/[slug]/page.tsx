@@ -186,7 +186,11 @@ export default async function StorefrontPage({
                 className="rounded-lg border border-line bg-white px-2.5 py-1.5 font-medium text-ink"
               >
                 {ws.cartLabel}
-                {cart && cart.itemCount > 0 ? ` (${cart.itemCount})` : ""}
+                {cart && cart.itemCount > 0 ? (
+                  <span className="motion-pop ml-1 inline-block">({cart.itemCount})</span>
+                ) : (
+                  ""
+                )}
               </Link>
             )}
             {whatsappDigits && !suspended && (

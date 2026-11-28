@@ -39,6 +39,8 @@ type SeedProduct = {
   price: number;
   categoryId: string;
   sort: number;
+  /** A photo in /public, so the storefront's best-seller rail has something to show. */
+  image: string;
 };
 
 const CATEGORIES = [
@@ -56,6 +58,7 @@ const PRODUCTS: SeedProduct[] = [
     price: 60,
     categoryId: "demo-cat-drinks",
     sort: 1,
+    image: "/demo/masala-chai.jpg",
   },
   {
     id: "demo-product-filter-coffee",
@@ -65,6 +68,7 @@ const PRODUCTS: SeedProduct[] = [
     price: 80,
     categoryId: "demo-cat-drinks",
     sort: 2,
+    image: "/demo/filter-coffee.jpg",
   },
   {
     id: "demo-product-cold-coffee",
@@ -74,6 +78,7 @@ const PRODUCTS: SeedProduct[] = [
     price: 160,
     categoryId: "demo-cat-drinks",
     sort: 3,
+    image: "/demo/cold-coffee.jpg",
   },
   {
     id: "demo-product-sandwich",
@@ -83,6 +88,7 @@ const PRODUCTS: SeedProduct[] = [
     price: 180,
     categoryId: "demo-cat-food",
     sort: 1,
+    image: "/demo/paneer-tikka-sandwich.jpg",
   },
   {
     id: "demo-product-garlic-bread",
@@ -92,6 +98,7 @@ const PRODUCTS: SeedProduct[] = [
     price: 150,
     categoryId: "demo-cat-food",
     sort: 2,
+    image: "/demo/cheese-garlic-bread.jpg",
   },
   {
     id: "demo-product-brownie",
@@ -101,6 +108,7 @@ const PRODUCTS: SeedProduct[] = [
     price: 120,
     categoryId: "demo-cat-sweet",
     sort: 1,
+    image: "/demo/chocolate-brownie.jpg",
   },
 ];
 
@@ -156,7 +164,20 @@ async function seedDemoStore(): Promise<void> {
     "SELECT id FROM businesses WHERE id = ? OR slug = ?",
     [DEMO_BUSINESS_ID, DEMO_SLUG],
   );
-  if (existing) return;
+  if (existing) {
+    // A demo shop seeded before the photos existed would never see them: the
+    // seed only ever runs on an empty database. Fill in any blank picture so the
+    // shop that is already live gains the rail too, without overwriting an
+    // image somebody has since set.
+    await db.batch(
+      PRODUCTS.map((product) => ({
+        sql: `UPDATE products SET image_url = ?
+               WHERE id = ? AND business_id = ? AND image_url = ''`,
+        params: [product.image, product.id, DEMO_BUSINESS_ID],
+      })),
+    );
+    return;
+  }
 
   const now = new Date().toISOString();
 
@@ -200,7 +221,7 @@ async function seedDemoStore(): Promise<void> {
       sql: `INSERT INTO products
               (id, business_id, category_id, name, slug, description, price, compare_at_price,
                image_url, is_active, is_available, sort_order, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, '', 1, 1, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, 1, 1, ?, ?)`,
       params: [
         product.id,
         DEMO_BUSINESS_ID,
@@ -209,6 +230,7 @@ async function seedDemoStore(): Promise<void> {
         product.slug,
         product.description,
         product.price,
+        product.image,
         product.sort,
         now,
       ],

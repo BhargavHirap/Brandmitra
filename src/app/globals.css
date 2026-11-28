@@ -34,6 +34,11 @@
   --color-success: #0f9d58;
   --color-warning: #b45309;
   --color-danger: #d92d20;
+
+  /* Motion curves, shared by every screen so nothing feels out of place. */
+  --ease-out-soft: cubic-bezier(0.22, 0.61, 0.36, 1); /* slow in, slow out */
+  --ease-out-snap: cubic-bezier(0.16, 1, 0.3, 1); /* fast start, long settle */
+  --ease-overshoot: cubic-bezier(0.34, 1.56, 0.64, 1); /* a small bounce */
 }
 
 @layer base {
@@ -101,12 +106,14 @@
     padding: 0.625rem 1rem;
     font-size: 0.875rem;
     font-weight: 600;
-    transition: transform 120ms ease, background-color 120ms ease,
+    transition: transform 160ms var(--ease-out-soft), background-color 120ms ease,
       border-color 120ms ease, opacity 120ms ease;
   }
 
+  /* Squash on press, stretch back on release: 60 ms down, 160 ms up. */
   .btn:active {
-    transform: translateY(1px);
+    transform: scale(0.97, 0.94);
+    transition-duration: 60ms;
   }
 
   .btn-primary {
@@ -268,5 +275,168 @@
 
   .orbit-chip {
     transform: rotate(var(--orbit-base)) translateY(-175px) rotate(calc(-1 * var(--orbit-base))) !important;
+  }
+}
+
+/* ------------------------------------------------------------------
+   The ten principles, in CSS
+   One small motion vocabulary shared by the landing page, the storefront
+   and the dashboard. Everything here is switched off for anyone who asks
+   for less motion (the block at the bottom of this file), and nothing
+   animates a layout property, so a phone keeps its frame rate.
+------------------------------------------------------------------ */
+@layer utilities {
+  /* 1 · Squash and stretch — a pressed button gets shorter and wider,
+     then springs back: 60 ms down, 160 ms up. */
+  .motion-press {
+    transition: transform 160ms var(--ease-out-soft);
+  }
+
+  .motion-press:active {
+    transform: scale(0.96, 0.93);
+    transition-duration: 60ms;
+  }
+
+  /* 2 · Anticipation — while a form posts, the button holds a small
+     pull-back, so the action has a wind-up instead of jumping. */
+  .motion-windup {
+    transition: transform 160ms var(--ease-out-soft), opacity 160ms linear;
+  }
+
+  .motion-windup[data-pending="true"] {
+    transform: scale(0.95, 0.93);
+    opacity: 0.85;
+  }
+
+  /* 3 · Staging — hovering one card quietly steps every other card back,
+     so attention sits on the one under the pointer. */
+  @media (hover: hover) and (pointer: fine) {
+    .motion-stage > * {
+      transition: opacity 220ms var(--ease-out-soft), transform 240ms var(--ease-out-soft),
+        filter 220ms var(--ease-out-soft), box-shadow 240ms var(--ease-out-soft);
+    }
+
+    .motion-stage:has(> *:hover) > *:not(:hover),
+    .motion-stage:has(> *:focus-within) > *:not(:focus-within) {
+      opacity: 0.55;
+      filter: saturate(0.9);
+    }
+  }
+
+  /* 4 · Pose to pose — the card has exactly two poses, rest and lifted;
+     the browser travels between them instead of cutting. */
+  .motion-pose {
+    transition: transform 240ms var(--ease-out-soft), box-shadow 240ms var(--ease-out-soft);
+  }
+
+  .motion-pose:hover {
+    transform: translateY(-2px);
+  }
+
+  /* 5 · Follow-through — rows arrive, overshoot by a pixel, then settle.
+     The stagger is a delay, not a different speed. */
+  .motion-settle {
+    animation: motion-settle-in 420ms var(--ease-out-soft) both;
+    animation-delay: calc(var(--i, 0) * 55ms);
+  }
+
+  @keyframes motion-settle-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    62% {
+      opacity: 1;
+      transform: translateY(-1.5px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* 7 · Moving in arcs — the confirmation chip drops in along a small
+     curve instead of a straight line. */
+  .motion-arc {
+    animation: motion-arc-in 460ms var(--ease-out-soft) both;
+  }
+
+  @keyframes motion-arc-in {
+    from {
+      opacity: 0;
+      transform: translate(-14px, 10px) rotate(-4deg) scale(0.96);
+    }
+    58% {
+      opacity: 1;
+      transform: translate(3px, -3px) rotate(1deg) scale(1.01);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* 9 · Snappy timing — small feedback is fast. The dashboard bars grow in
+     240 ms, each a hair after the last; nothing small waits 900 ms. */
+  .motion-bar {
+    transform-origin: bottom;
+    animation: motion-bar-grow 240ms var(--ease-out-snap) both;
+    animation-delay: calc(var(--i, 0) * 14ms);
+  }
+
+  @keyframes motion-bar-grow {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  /* 10 · Exaggerated feedback — a number that confirms something gets a
+     short overshoot, a beat after the row it belongs to. Never more than
+     20%: at this size that reads as emphasis, not as a toy. */
+  .motion-pop {
+    animation: motion-pop-in 320ms var(--ease-overshoot) both;
+    animation-delay: 140ms;
+  }
+
+  @keyframes motion-pop-in {
+    from {
+      transform: scale(0.88);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-press,
+  .motion-windup,
+  .motion-pose,
+  .motion-stage > * {
+    transition: none !important;
+  }
+
+  .motion-press:active,
+  .motion-windup[data-pending="true"],
+  .motion-pose:hover {
+    transform: none !important;
+  }
+
+  .motion-settle,
+  .motion-arc,
+  .motion-bar,
+  .motion-pop {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .motion-stage:has(> *:hover) > *:not(:hover),
+  .motion-stage:has(> *:focus-within) > *:not(:focus-within) {
+    opacity: 1 !important;
+    filter: none !important;
   }
 }

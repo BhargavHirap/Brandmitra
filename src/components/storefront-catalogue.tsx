@@ -1,4 +1,5 @@
 import { addToCartAction } from "@/app/actions/cart";
+import { SubmitButton } from "@/components/motion/submit-button";
 import { formatMoney } from "@/lib/format";
 import type { Workspace } from "@/lib/workspace";
 
@@ -164,11 +165,11 @@ export function StorefrontCatalogue({
                     {section.items.length} {section.items.length === 1 ? ws.item : ws.itemsLower}
                   </span>
                 </div>
-                <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <ul className="motion-stage mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {section.items.map((product) => (
                     <li
                       key={product.id}
-                      className="group flex flex-col overflow-hidden rounded-xl border border-line bg-white transition-shadow hover:shadow-[0_8px_28px_-16px_rgba(11,11,15,0.28)]"
+                      className="motion-pose group flex flex-col overflow-hidden rounded-xl border border-line bg-white hover:shadow-[0_8px_28px_-16px_rgba(11,11,15,0.28)]"
                     >
                       {product.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -278,13 +279,13 @@ export function StorefrontCatalogue({
                                 aria-label={`Quantity of ${product.name}`}
                                 className="field w-16 px-2 py-1.5 text-center text-[12px]"
                               />
-                              <button
-                                type="submit"
+                              <SubmitButton
                                 className="btn flex-1 px-3 py-1.5 text-[12px] text-white"
+                                pendingLabel="Adding…"
                                 style={{ backgroundColor: accent }}
                               >
                                 {ws.addAction}
-                              </button>
+                              </SubmitButton>
                             </div>
                           </form>
                         </div>
